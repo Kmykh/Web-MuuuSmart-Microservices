@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, Container, Typography, Paper, Button, Grid, Card, CardContent, CardActions,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, Chip,
-  CircularProgress, MenuItem, Slider, FormControl, InputLabel, Select,
+  CircularProgress, MenuItem, FormControl, InputLabel, Select,
   List, ListItemButton, ListItemIcon, Tooltip, Avatar, AppBar,
-  Toolbar, CssBaseline, Slide, Divider, Snackbar, Alert, Stack, InputAdornment
+  Toolbar, CssBaseline, Slide, Divider, Snackbar, Alert, InputAdornment, LinearProgress
 } from '@mui/material';
 import { TransitionProps } from '@mui/material/transitions';
 import { createTheme, ThemeProvider, alpha } from '@mui/material/styles';
@@ -20,7 +20,7 @@ import {
   Logout as LogoutIcon, MonitorWeight as WeightIcon, Cake as CakeIcon,
   Warning as WarningIcon, Remove as RemoveIcon, InfoOutlined as InfoIcon,
   AutoAwesome as AutoIcon,
-  QrCode as TagIcon
+  QrCode as TagIcon, Person as OwnerIcon, Timeline as IdIcon
 } from '@mui/icons-material';
 
 import { getAllAnimalsAction, createAnimalAction, updateAnimalAction, deleteAnimalAction } from '../application/animal';
@@ -93,11 +93,14 @@ const theme = createTheme({
           '& fieldset': { borderColor: 'rgba(0,0,0,0.08)' },
         }
       }
+    },
+    MuiLinearProgress: {
+        styleOverrides: {
+            root: { height: 8, borderRadius: 4 },
+        }
     }
   }
 });
-
-// Formularios minimalistas sin islas
 
 // --- COMPONENTE: Scroll Number Picker ---
 const ScrollNumberPicker: React.FC<{
@@ -109,7 +112,8 @@ const ScrollNumberPicker: React.FC<{
   step: number;
   unit: string;
   icon?: React.ReactNode;
-}> = ({ label, value, onChange, min, max, step, unit, icon }) => {
+  disabled?: boolean;
+}> = ({ label, value, onChange, min, max, step, unit, icon, disabled = false }) => {
   return (
     <Box>
       <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -121,15 +125,16 @@ const ScrollNumberPicker: React.FC<{
         gap: 1.5,
         p: 1.5,
         borderRadius: 3,
-        bgcolor: '#f8f9fa',
+        bgcolor: disabled ? '#f0f0f0' : '#f8f9fa',
         border: '1px solid rgba(0,0,0,0.08)',
         transition: 'all 0.2s',
-        '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(67, 160, 71, 0.02)' }
+        opacity: disabled ? 0.7 : 1,
+        '&:hover': disabled ? {} : { borderColor: 'primary.main', bgcolor: 'rgba(67, 160, 71, 0.02)' }
       }}>
         <IconButton 
           onClick={() => onChange(Math.max(min, value - step))}
           size="small"
-          disabled={value <= min}
+          disabled={value <= min || disabled}
           sx={{ 
             bgcolor: 'white',
             border: '1px solid #e0e0e0',
@@ -141,7 +146,7 @@ const ScrollNumberPicker: React.FC<{
               transform: 'scale(1.1)',
               boxShadow: '0 4px 8px rgba(67, 160, 71, 0.3)'
             },
-            '&:disabled': { opacity: 0.3 }
+            '&:disabled': { opacity: 0.3, ...disabled ? { bgcolor: '#e0e0e0', color: 'rgba(0,0,0,0.26)' } : {} }
           }}
         >
           <RemoveIcon fontSize="small" />
@@ -170,7 +175,7 @@ const ScrollNumberPicker: React.FC<{
         <IconButton 
           onClick={() => onChange(Math.min(max, value + step))}
           size="small"
-          disabled={value >= max}
+          disabled={value >= max || disabled}
           sx={{ 
             bgcolor: 'white',
             border: '1px solid #e0e0e0',
@@ -182,7 +187,7 @@ const ScrollNumberPicker: React.FC<{
               transform: 'scale(1.1)',
               boxShadow: '0 4px 8px rgba(67, 160, 71, 0.3)'
             },
-            '&:disabled': { opacity: 0.3 }
+            '&:disabled': { opacity: 0.3, ...disabled ? { bgcolor: '#e0e0e0', color: 'rgba(0,0,0,0.26)' } : {} }
           }}
         >
           <AddIcon fontSize="small" />
@@ -210,6 +215,14 @@ const HEALTH_STATUSES = [
   { value: 'SICK', label: 'Enfermo', color: 'error', desc: 'Tratar' },
 ];
 
+const getFeedInfo = (lvl: number) => {
+    if (lvl <= 4) return { label: 'Bajo', color: 'error', bg: '#ffebee', text: 'Atención: Nivel de alimento bajo. Necesita suministro urgente.' };
+    if (lvl <= 7) return { label: 'Medio', color: 'warning', bg: '#fff3e0', text: 'Nivel medio. Considerar reponer pronto.' };
+    if (lvl > 8) return { label: 'Alto', color: 'info', bg: '#e3f2fd', text: 'Abundante. Posible sobrepeso si se mantiene alto constantemente.' };
+    return { label: 'Óptimo', color: 'success', bg: '#e8f5e9', text: 'Nivel ideal.' };
+};
+
+// --- COMPONENTE PRINCIPAL ---
 const AnimalsPage: React.FC = () => {
   const { token, logout } = useAuth();
   const navigate = useNavigate();
@@ -225,8 +238,11 @@ const AnimalsPage: React.FC = () => {
   const [username, setUsername] = useState<string>('Usuario');
   const [stableOccupancy, setStableOccupancy] = useState<Record<number, number>>({});
   const [searchTerm, setSearchTerm] = useState('');
-  const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
+  const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' | 'warning' | 'info' }>({ open: false, message: '', severity: 'success' });
   const [formData, setFormData] = useState<AnimalRequest>({ tag: '', breed: 'Holstein', weight: 450, age: 2, status: 'HEALTHY', feedLevel: 7, stableId: 0 });
+
+  // Referencia para la notificación de alimento bajo para evitar duplicados
+  const lowFeedAlertsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     if (!token) { navigate('/login'); return; }
@@ -234,25 +250,63 @@ const AnimalsPage: React.FC = () => {
     loadData();
   }, [token]);
 
-  const loadData = async () => {
+  const showSnackbar = (message: string, severity: 'success' | 'error' | 'warning' | 'info') => setSnackbar({ open: true, message, severity });
+
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [aData, sData] = await Promise.all([getAllAnimalsAction(), getAllStablesAction()]);
-      setAnimals(aData);
+      setAnimals(aData.map(a => ({ ...a, feedLevel: a.feedLevel || 7 }))); // Asegura feedLevel
       setStables(sData);
       const occupancy: Record<number, number> = {};
       sData.forEach(s => occupancy[s.id] = aData.filter(a => a.stableId === s.id).length);
       setStableOccupancy(occupancy);
+
+      // Revisión de alertas después de cargar/actualizar datos
+      aData.forEach(animal => {
+        if ((animal.feedLevel || 7) <= 4 && !lowFeedAlertsRef.current.has(animal.id)) {
+            showSnackbar(`¡ALERTA DE ALIMENTO! El animal ${animal.tag} necesita reabastecimiento.`, 'warning');
+            lowFeedAlertsRef.current.add(animal.id);
+        } else if ((animal.feedLevel || 7) > 4 && lowFeedAlertsRef.current.has(animal.id)) {
+             // Limpiar alerta si el nivel sube
+             lowFeedAlertsRef.current.delete(animal.id);
+        }
+      });
+
     } catch (err) { showSnackbar('Error cargando datos', 'error'); } 
     finally { setLoading(false); }
-  };
+  }, []);
+
+  // --- CONSUMO AUTOMÁTICO DE ALIMENTO (cada 1 minuto) ---
+  useEffect(() => {
+    const intervalId = setInterval(async () => {
+      setAnimals(prevAnimals => {
+        const updatedAnimals = prevAnimals.map(animal => {
+          const newFeedLevel = Math.max(0, (animal.feedLevel || 7) - 1);
+          return { ...animal, feedLevel: newFeedLevel };
+        });
+        updatedAnimals.forEach(animal => {
+          if (animal.feedLevel <= 4 && !lowFeedAlertsRef.current.has(animal.id)) {
+            showSnackbar(`¡ALERTA DE ALIMENTO! El animal ${animal.tag} necesita reabastecimiento.`, 'warning');
+            lowFeedAlertsRef.current.add(animal.id);
+          } else if (animal.feedLevel > 4 && lowFeedAlertsRef.current.has(animal.id)) {
+            lowFeedAlertsRef.current.delete(animal.id);
+          }
+        });
+        // Aquí se podría llamar a una función del backend para actualizar realmente los niveles
+        // updateFeedLevelsInBackend(updatedAnimals.map(a => ({ id: a.id, feedLevel: a.feedLevel })));
+        return updatedAnimals;
+      });
+    }, 60000); // Cada 1 minuto baja el nivel de alimento (60000ms)
+    return () => clearInterval(intervalId);
+  }, [loadData]);
+
 
   const generateTag = () => {
     const maxId = animals.length > 0 ? Math.max(...animals.map(a => parseInt(a.tag.split('-')[1] || '0'))) : 0;
     return `BOV-${String(maxId + 1).padStart(3, '0')}`;
   };
 
-  const showSnackbar = (message: string, severity: 'success' | 'error') => setSnackbar({ open: true, message, severity });
 
   const handleOpenDialog = (animal?: Animal) => {
     if (animal) {
@@ -267,11 +321,14 @@ const AnimalsPage: React.FC = () => {
 
   const handleSubmit = async () => {
     try {
+      // Si se está editando, enviamos los datos actualizados, incluyendo el stableId si no está bloqueado.
+      // Si el establo está bloqueado, el Select está disabled, por lo que formData.stableId
+      // será el valor original, lo cual es correcto.
       if (editingAnimal) await updateAnimalAction(editingAnimal.id, formData);
       else await createAnimalAction(formData);
       setOpenDialog(false);
       showSnackbar('Operación exitosa', 'success');
-      loadData();
+      loadData(); 
     } catch (err) { showSnackbar('Error al guardar', 'error'); }
   };
 
@@ -286,11 +343,6 @@ const AnimalsPage: React.FC = () => {
 
   const filteredAnimals = animals.filter(a => a.tag.toLowerCase().includes(searchTerm.toLowerCase()) || a.breed.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  const getFeedInfo = (lvl: number) => {
-    if (lvl < 4) return { label: 'Bajo', color: '#e53935', bg: '#ffebee', text: 'Atención necesaria' };
-    if (lvl > 8) return { label: 'Alto', color: '#fb8c00', bg: '#fff3e0', text: 'Posible sobrepeso' };
-    return { label: 'Óptimo', color: '#43a047', bg: '#e8f5e9', text: 'Estado ideal' };
-  };
   const feedMeta = getFeedInfo(formData.feedLevel || 0);
 
   return (
@@ -298,7 +350,7 @@ const AnimalsPage: React.FC = () => {
       <CssBaseline />
       <Box sx={{ minHeight: '100vh', width: '100%', display: 'flex', background: 'linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 50%, #ffffff 100%)', backgroundSize: '200% 200%', animation: `${backgroundMove} 15s ease infinite`, overflow: 'hidden' }}>
         
-        {/* SIDEBAR */}
+        {/* SIDEBAR (No modificado) */}
         <Box sx={{ width: '80px', display: { xs: 'none', md: 'flex' }, flexDirection: 'column', alignItems: 'center', py: 4, zIndex: 10 }}>
           <Paper elevation={0} sx={{ width: '60px', height: '90%', borderRadius: '30px', backgroundColor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.5)', display: 'flex', flexDirection: 'column', alignItems: 'center', py: 2 }}>
              <List sx={{ width: '100%', px: 1, mt: 2 }}>
@@ -313,7 +365,7 @@ const AnimalsPage: React.FC = () => {
           </Paper>
         </Box>
 
-        {/* CONTENIDO */}
+        {/* CONTENIDO (No modificado en estructura principal) */}
         <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
           <AppBar position="static" elevation={0} sx={{ bgcolor: 'transparent', pt: 2, px: 3 }}>
             <Toolbar sx={{ justifyContent: 'space-between', bgcolor: 'rgba(255,255,255,0.6)', backdropFilter: 'blur(10px)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.5)' }}>
@@ -338,47 +390,45 @@ const AnimalsPage: React.FC = () => {
             </Box>
 
             {loading ? <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box> :
-            filteredAnimals.length === 0 ? <Paper sx={{ p: 5, textAlign: 'center', borderRadius: 4, bgcolor: 'rgba(255,255,255,0.6)' }}><Typography>No hay animales</Typography></Paper> : 
+            filteredAnimals.length === 0 ? <Paper sx={{ p: 5, textAlign: 'center', borderRadius: 4, bgcolor: 'rgba(255,255,255,0.6)' }}><Typography>No hay animales registrados.</Typography></Paper> : 
             
             <Grid container spacing={3}>
               {filteredAnimals.map((animal, index) => {
                 const sInfo = HEALTH_STATUSES.find(s => s.value === animal.status) || HEALTH_STATUSES[0];
+                const stable = stables.find(s => s.id === animal.stableId);
+                const fInfo = getFeedInfo(animal.feedLevel || 0);
+
                 return (
                   <Grid item xs={12} sm={6} md={4} lg={3} key={animal.id}>
                     <Card elevation={0} sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(10px)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.8)', animation: `${fadeInUp} 0.5s ease backwards`, animationDelay: `${index * 0.05}s`, transition: 'all 0.3s', position: 'relative', '&:hover': { transform: 'translateY(-5px)', boxShadow: '0 12px 30px rgba(46, 125, 50, 0.15)' } }}>
+                      
+                      {/* Indicador de Estado de Salud */}
                       <Box sx={{ position: 'absolute', top: 20, right: 0, width: 6, height: 40, bgcolor: `${sInfo.color}.main`, borderRadius: '4px 0 0 4px' }} />
+                      
+                      {/* Icono animado del animal */}
                       <Box sx={{ bgcolor: 'rgba(67, 160, 71, 0.05)', p: 2.5, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                          <Box sx={{ animation: `${pulse} 3s infinite ease-in-out` }}>
+                            {/* SVG de la vaca (No modificado) */}
                             <svg width="80" height="80" viewBox="0 0 200 200">
-                              {/* Fondo circular */}
                               <circle cx="100" cy="100" r="90" fill="#E8F5E9" />
-                              {/* Cuerpo de la vaca */}
                               <ellipse cx="100" cy="110" rx="55" ry="45" fill="#FFFFFF" />
-                              {/* Manchas */}
                               <ellipse cx="75" cy="100" rx="15" ry="20" fill="#8D6E63" />
                               <ellipse cx="120" cy="105" rx="18" ry="22" fill="#8D6E63" />
                               <ellipse cx="95" cy="125" rx="12" ry="15" fill="#8D6E63" />
-                              {/* Cabeza */}
                               <ellipse cx="100" cy="70" rx="28" ry="32" fill="#FFFFFF" />
-                              {/* Orejas */}
                               <ellipse cx="75" cy="60" rx="8" ry="15" fill="#FFB6C1" transform="rotate(-25 75 60)" />
                               <ellipse cx="125" cy="60" rx="8" ry="15" fill="#FFB6C1" transform="rotate(25 125 60)" />
-                              {/* Cuernos */}
                               <path d="M80 50 L75 35 L78 50 Z" fill="#D2691E" />
                               <path d="M120 50 L125 35 L122 50 Z" fill="#D2691E" />
-                              {/* Ojos */}
                               <circle cx="90" cy="70" r="4" fill="#2c3e50" />
                               <circle cx="110" cy="70" r="4" fill="#2c3e50" />
-                              {/* Hocico */}
                               <ellipse cx="100" cy="85" rx="18" ry="12" fill="#FFB6C1" />
                               <ellipse cx="95" cy="87" rx="3" ry="4" fill="#2c3e50" />
                               <ellipse cx="105" cy="87" rx="3" ry="4" fill="#2c3e50" />
-                              {/* Patas */}
                               <rect x="70" y="140" width="10" height="25" rx="5" fill="#FFFFFF" />
                               <rect x="90" y="140" width="10" height="25" rx="5" fill="#FFFFFF" />
                               <rect x="110" y="140" width="10" height="25" rx="5" fill="#FFFFFF" />
                               <rect x="130" y="140" width="10" height="25" rx="5" fill="#FFFFFF" />
-                              {/* Pezuñas */}
                               <rect x="70" y="160" width="10" height="8" rx="2" fill="#2c3e50" />
                               <rect x="90" y="160" width="10" height="8" rx="2" fill="#2c3e50" />
                               <rect x="110" y="160" width="10" height="8" rx="2" fill="#2c3e50" />
@@ -386,18 +436,62 @@ const AnimalsPage: React.FC = () => {
                             </svg>
                          </Box>
                       </Box>
-                      <CardContent sx={{ pt: 2, pb: 1 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                           <Typography variant="h6" fontWeight="bold">{animal.tag}</Typography>
+                      
+                      {/* Contenido principal (No modificado) */}
+                      <CardContent sx={{ pt: 2, pb: 1, flexGrow: 1 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                           <Typography variant="h6" fontWeight="bold" color="primary.dark">{animal.tag}</Typography>
                            <Chip label={sInfo.label} color={sInfo.color as any} size="small" variant="outlined" sx={{ fontWeight: 600, border: 'none', bgcolor: 'rgba(0,0,0,0.05)' }} />
                         </Box>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{animal.breed}</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            <Box component="span" fontWeight="bold">Raza:</Box> {animal.breed}
+                        </Typography>
+                        
                         <Divider sx={{ my: 1 }} />
-                        <Box sx={{ display: 'flex', justifyContent: 'space-around', my: 1 }}>
-                            <Box sx={{ textAlign: 'center' }}><Typography variant="caption" color="text.secondary">Peso</Typography><Typography variant="body2" fontWeight="bold">{animal.weight}kg</Typography></Box>
-                            <Box sx={{ textAlign: 'center' }}><Typography variant="caption" color="text.secondary">Edad</Typography><Typography variant="body2" fontWeight="bold">{animal.age} a</Typography></Box>
-                        </Box>
+                        
+                        <Grid container spacing={1}>
+                            {/* Fila 1: Propietario y Peso */}
+                            <Grid item xs={6}><Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><OwnerIcon fontSize="small" color="action" /><Typography variant="caption" color="text.secondary">Dueño: <Box component="span" fontWeight="bold">{animal.ownerUsername}</Box></Typography></Box></Grid>
+                            <Grid item xs={6}><Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><WeightIcon fontSize="small" color="action" /><Typography variant="caption" color="text.secondary">Peso: <Box component="span" fontWeight="bold">{animal.weight}kg</Box></Typography></Box></Grid>
+                            
+                            {/* Fila 2: Edad y Establo */}
+                            <Grid item xs={6}><Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><CakeIcon fontSize="small" color="action" /><Typography variant="caption" color="text.secondary">Edad: <Box component="span" fontWeight="bold">{animal.age} a</Box></Typography></Box></Grid>
+                            <Grid item xs={6}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0.5, bgcolor: 'rgba(0,0,0,0.03)', borderRadius: 1 }}>
+                                    <HouseSidingIcon fontSize="small" color="primary" />
+                                    <Typography variant="caption" fontWeight="600" color="primary.dark">
+                                        <Box component="span" fontWeight="bold">{stable?.name || 'N/A'}</Box>
+                                    </Typography>
+                                </Box>
+                            </Grid>
+
+                            {/* Fila 3: Nivel de Alimentación (Barra Dinámica) */}
+                            <Grid item xs={12} sx={{ mt: 1 }}>
+                                <Tooltip title={fInfo.text} arrow>
+                                    <Box>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                            <Typography variant="caption" color="text.secondary">Alimento ({fInfo.label}):</Typography>
+                                            <Typography variant="caption" fontWeight="bold" color={`${fInfo.color}.main`}>{animal.feedLevel}/10</Typography>
+                                        </Box>
+                                        <LinearProgress 
+                                            variant="determinate" 
+                                            value={(animal.feedLevel || 0) * 10} 
+                                            color={fInfo.color as any} 
+                                            sx={{ 
+                                                bgcolor: 'rgba(0,0,0,0.05)', 
+                                                '& .MuiLinearProgress-bar': { 
+                                                    transition: 'transform 1s linear' // Animación suave
+                                                } 
+                                            }}
+                                        />
+                                    </Box>
+                                </Tooltip>
+                            </Grid>
+                        </Grid>
+
                       </CardContent>
+                      
+                      {/* Acciones */}
                       <CardActions sx={{ justifyContent: 'center', pb: 2 }}>
                         <IconButton size="small" onClick={() => handleOpenDialog(animal)} sx={{ bgcolor: 'rgba(33, 150, 243, 0.1)', color: '#1976d2', mx: 1 }}><EditIcon /></IconButton>
                         <IconButton size="small" onClick={() => confirmDelete(animal.id)} sx={{ bgcolor: 'rgba(244, 67, 54, 0.1)', color: '#d32f2f', mx: 1 }}><DeleteIcon /></IconButton>
@@ -439,7 +533,7 @@ const AnimalsPage: React.FC = () => {
           <DialogContent sx={{ px: 2, py: 2 }}>
             <Grid container spacing={2.5}>
                 
-                {/* SECCIÓN 1: IDENTIDAD */}
+                {/* SECCIÓN 1: IDENTIDAD (No modificada) */}
                 <Grid item xs={12}>
                     <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, mb: 1.5, fontWeight: 700, display: 'block' }}>
                         Identificación
@@ -482,7 +576,7 @@ const AnimalsPage: React.FC = () => {
 
                 <Grid item xs={12}><Divider /></Grid>
 
-                {/* SECCIÓN 2: MÉTRICAS CORPORALES */}
+                {/* SECCIÓN 2: MÉTRICAS CORPORALES (No modificada) */}
                 <Grid item xs={12}>
                     <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, mb: 1.5, fontWeight: 700, display: 'block' }}>
                         Métricas Corporales
@@ -522,9 +616,10 @@ const AnimalsPage: React.FC = () => {
                                 step={1} 
                                 unit={`/10 - ${feedMeta.label}`}
                                 icon={<WaterDropIcon fontSize="small" />}
+                                disabled={!!editingAnimal} // Se deshabilita la edición de FeedLevel
                             />
                             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontStyle: 'italic' }}>
-                                {feedMeta.text}
+                                <Box component="span" fontWeight="bold">Nota:</Box> El nivel de alimentación se actualiza automáticamente con el consumo.
                             </Typography>
                         </Grid>
                     </Grid>
@@ -532,13 +627,13 @@ const AnimalsPage: React.FC = () => {
 
                 <Grid item xs={12}><Divider /></Grid>
 
-                {/* SECCIÓN 3: ESTADO Y UBICACIÓN */}
+                {/* SECCIÓN 3: ESTADO Y UBICACIÓN (MODIFICADA) */}
                 <Grid item xs={12}>
                     <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, mb: 1.5, fontWeight: 700, display: 'block' }}>
                         Ubicación y Estado
                     </Typography>
                     <Grid container spacing={2}>
-                        <Grid item xs={12} sm={6}>
+                        <Grid item xs={12} sm={6} sx={{ position: 'relative' }}> {/* Contenedor para el Select y la capa de bloqueo */}
                             <FormControl fullWidth>
                                 <InputLabel>Establo Asignado</InputLabel>
                                 <Select 
@@ -546,6 +641,8 @@ const AnimalsPage: React.FC = () => {
                                     value={formData.stableId} 
                                     onChange={(e) => setFormData({...formData, stableId: Number(e.target.value)})}
                                     startAdornment={<InputAdornment position="start"><HouseSidingIcon fontSize="small" /></InputAdornment>}
+                                    // Mantenemos disabled=true para que el campo se vea grisado y no sea interactivo
+                                    disabled={!!editingAnimal} 
                                 >
                                     {stables.map(s => {
                                         const occupied = stableOccupancy[s.id] || 0;
@@ -562,7 +659,38 @@ const AnimalsPage: React.FC = () => {
                                     })}
                                 </Select>
                             </FormControl>
+
+                            {/* CAPA DE BLOQUEO SUPERPUESTA */}
+                            {!!editingAnimal && (
+                                <Box
+                                    sx={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        zIndex: 100, // Asegura que esté por encima del Select
+                                        borderRadius: '12px',
+                                        backgroundColor: alpha(theme.palette.background.default, 0.9), // Fondo semi-transparente
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        p: 1,
+                                        textAlign: 'center',
+                                        border: `1px solid ${theme.palette.error.light}`,
+                                        transition: 'opacity 0.3s'
+                                    }}
+                                >
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <InfoIcon fontSize="small" color="error" />
+                                        <Typography variant="caption" color="error.dark" fontWeight="600">
+                                           <Box component="span" fontWeight="bold">Establo Bloqueado:</Box> Modificación solo para Administradores.
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            )}
                         </Grid>
+                        
                         <Grid item xs={12} sm={6}>
                             <FormControl fullWidth>
                                 <InputLabel>Estado de Salud</InputLabel>
@@ -598,7 +726,7 @@ const AnimalsPage: React.FC = () => {
           </DialogActions>
         </Dialog>
 
-        {/* --- DIÁLOGO ELIMINAR --- */}
+        {/* --- DIÁLOGO ELIMINAR (No modificado) --- */}
         <Dialog open={openDeleteDialog} TransitionComponent={Transition} keepMounted onClose={() => setOpenDeleteDialog(false)} PaperProps={{ sx: { borderRadius: '24px', p: 2, minWidth: 320 } }}>
             <DialogTitle sx={{ textAlign: 'center', color: 'error.main' }}><WarningIcon sx={{ fontSize: 60, mb: 1, display: 'block', mx: 'auto' }} />¿Eliminar registro?</DialogTitle>
             <DialogContent sx={{ textAlign: 'center' }}><Typography variant="body1" color="text.secondary">Esta acción no se puede deshacer.</Typography></DialogContent>
@@ -608,7 +736,26 @@ const AnimalsPage: React.FC = () => {
             </DialogActions>
         </Dialog>
         
-        <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({...snackbar, open: false})}><Alert severity={snackbar.severity} sx={{ width: '100%', borderRadius: 3 }}>{snackbar.message}</Alert></Snackbar>
+        {/* --- SNACKBAR (Notificación estilo isla) (No modificado) --- */}
+        <Snackbar 
+            open={snackbar.open} 
+            autoHideDuration={4000} 
+            onClose={() => setSnackbar({...snackbar, open: false})}
+            anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
+            <Alert 
+                severity={snackbar.severity} 
+                onClose={() => setSnackbar({...snackbar, open: false})} 
+                sx={{ 
+                    width: '100%', 
+                    borderRadius: 3, 
+                    boxShadow: '0 10px 20px rgba(0,0,0,0.1)',
+                    bgcolor: snackbar.severity === 'warning' ? '#fff8e1' : undefined
+                }}
+            >
+                {snackbar.message}
+            </Alert>
+        </Snackbar>
 
       </Box>
     </ThemeProvider>

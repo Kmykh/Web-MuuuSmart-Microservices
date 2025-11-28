@@ -21,6 +21,10 @@ export default defineConfig(({ mode }) => {
         '/stables': {
           target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
           changeOrigin: true
+        },
+        '/campaigns': {
+          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          changeOrigin: true
         }
       }
     }
