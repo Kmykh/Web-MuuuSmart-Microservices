@@ -5,7 +5,8 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, Chip,
   CircularProgress, MenuItem, FormControl, InputLabel, Select,
   List, ListItemButton, ListItemIcon, Tooltip, Avatar, AppBar,
-  Toolbar, CssBaseline, Slide, Divider, Snackbar, Alert, InputAdornment, LinearProgress
+  Toolbar, CssBaseline, Slide, Divider, Snackbar, Alert, InputAdornment, LinearProgress,
+  Autocomplete, Stack
 } from '@mui/material';
 import { TransitionProps } from '@mui/material/transitions';
 import { createTheme, ThemeProvider, alpha } from '@mui/material/styles';
@@ -20,7 +21,9 @@ import {
   Logout as LogoutIcon, MonitorWeight as WeightIcon, Cake as CakeIcon,
   Warning as WarningIcon, Remove as RemoveIcon, InfoOutlined as InfoIcon,
   AutoAwesome as AutoIcon,
-  QrCode as TagIcon, Person as OwnerIcon, Timeline as IdIcon
+  QrCode as TagIcon, Person as OwnerIcon, Restaurant as FeedIcon,
+  AccessTime as TimeIcon, LocationOn as LocationIcon, 
+  Timeline as TimelineIcon
 } from '@mui/icons-material';
 
 import { getAllAnimalsAction, createAnimalAction, updateAnimalAction, deleteAnimalAction } from '../application/animal';
@@ -29,6 +32,11 @@ import { Animal, AnimalRequest } from '../domain/animal';
 import { StableResponse } from '../domain/stable';
 import { useAuth } from '../contexts/AuthContext';
 
+// --- IMAGENES ---
+import HealthyCow from '../assets/vaca_sana.png';
+import ObservationCow from '../assets/vaca_observacion.png';
+import SickCow from '../assets/vaca_enferma.png';
+
 // --- ANIMACIONES & ESTILOS ---
 const backgroundMove = keyframes`
   0% { background-position: 0% 50%; }
@@ -36,10 +44,10 @@ const backgroundMove = keyframes`
   100% { background-position: 0% 50%; }
 `;
 
-const pulse = keyframes`
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
+const float = keyframes`
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+  100% { transform: translateY(0px); }
 `;
 
 const fadeInUp = keyframes`
@@ -57,147 +65,47 @@ const Transition = React.forwardRef(function Transition(
 const theme = createTheme({
   palette: {
     primary: { main: '#43a047', dark: '#2e7d32' },
+    secondary: { main: '#ff6f00' }, 
     error: { main: '#e53935' },
-    background: { default: '#f0f4f1' },
+    warning: { main: '#ed6c02' },
+    background: { default: '#f4f6f8' },
     text: { primary: '#37474f', secondary: '#78909c' },
   },
   typography: { fontFamily: '"Poppins", "Roboto", sans-serif' },
-  shape: { borderRadius: 16 },
+  shape: { borderRadius: 20 },
   components: {
-    MuiDialog: {
-      styleOverrides: {
-        paper: {
-          borderRadius: 24,
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
-        }
-      }
-    },
-    MuiTextField: {
-      styleOverrides: {
-        root: {
-          '& .MuiOutlinedInput-root': {
-            borderRadius: 12,
-            backgroundColor: '#f8f9fa',
-            '& fieldset': { borderColor: 'rgba(0,0,0,0.08)' },
-            '&:hover fieldset': { borderColor: 'rgba(0,0,0,0.2)' },
-            '&.Mui-focused fieldset': { borderColor: '#43a047' },
-          }
-        }
-      }
-    },
-    MuiSelect: {
-      styleOverrides: {
-        root: {
-          borderRadius: 12,
-          backgroundColor: '#f8f9fa',
-          '& fieldset': { borderColor: 'rgba(0,0,0,0.08)' },
-        }
-      }
-    },
-    MuiLinearProgress: {
+    MuiCard: {
         styleOverrides: {
-            root: { height: 8, borderRadius: 4 },
+            root: { borderRadius: 24, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }
+        }
+    },
+    MuiAutocomplete: {
+        styleOverrides: {
+            paper: { borderRadius: 16, marginTop: 8 }
         }
     }
   }
 });
 
-// --- COMPONENTE: Scroll Number Picker ---
+// --- HELPER: SCROLL NUMBER PICKER ---
 const ScrollNumberPicker: React.FC<{
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  min: number;
-  max: number;
-  step: number;
-  unit: string;
-  icon?: React.ReactNode;
-  disabled?: boolean;
+  label: string; value: number; onChange: (v: number) => void; min: number; max: number; step: number; unit: string; icon?: React.ReactNode; disabled?: boolean;
 }> = ({ label, value, onChange, min, max, step, unit, icon, disabled = false }) => {
   return (
     <Box>
-      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-        {icon} {label}
-      </Typography>
-      <Box sx={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: 1.5,
-        p: 1.5,
-        borderRadius: 3,
-        bgcolor: disabled ? '#f0f0f0' : '#f8f9fa',
-        border: '1px solid rgba(0,0,0,0.08)',
-        transition: 'all 0.2s',
-        opacity: disabled ? 0.7 : 1,
-        '&:hover': disabled ? {} : { borderColor: 'primary.main', bgcolor: 'rgba(67, 160, 71, 0.02)' }
-      }}>
-        <IconButton 
-          onClick={() => onChange(Math.max(min, value - step))}
-          size="small"
-          disabled={value <= min || disabled}
-          sx={{ 
-            bgcolor: 'white',
-            border: '1px solid #e0e0e0',
-            borderRadius: 2,
-            transition: 'all 0.2s',
-            '&:hover': { 
-              bgcolor: 'primary.main', 
-              color: 'white',
-              transform: 'scale(1.1)',
-              boxShadow: '0 4px 8px rgba(67, 160, 71, 0.3)'
-            },
-            '&:disabled': { opacity: 0.3, ...disabled ? { bgcolor: '#e0e0e0', color: 'rgba(0,0,0,0.26)' } : {} }
-          }}
-        >
-          <RemoveIcon fontSize="small" />
-        </IconButton>
-        
-        <Box sx={{ 
-          flexGrow: 1, 
-          textAlign: 'center',
-          bgcolor: 'white',
-          borderRadius: 2,
-          p: 1,
-          minWidth: 100
-        }}>
-          <Typography variant="h5" fontWeight="700" color="primary.main" sx={{ 
-            fontFamily: 'monospace',
-            transition: 'transform 0.2s',
-            '&:hover': { transform: 'scale(1.05)' }
-          }}>
-            {value}
-            <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>
-              {unit}
-            </Typography>
-          </Typography>
+      <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, mb: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>{icon} {label}</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, borderRadius: 3, bgcolor: disabled ? '#f0f0f0' : '#f8f9fa', border: '1px solid rgba(0,0,0,0.08)', transition: 'all 0.2s', opacity: disabled ? 0.7 : 1 }}>
+        <IconButton onClick={() => onChange(Math.max(min, value - step))} size="small" disabled={value <= min || disabled} sx={{ bgcolor: 'white', border: '1px solid #e0e0e0', borderRadius: 2 }}><RemoveIcon fontSize="small" /></IconButton>
+        <Box sx={{ flexGrow: 1, textAlign: 'center', bgcolor: 'white', borderRadius: 2, p: 1, minWidth: 100 }}>
+          <Typography variant="h5" fontWeight="700" color="primary.main" sx={{ fontFamily: 'monospace' }}>{value}<Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 0.5 }}>{unit}</Typography></Typography>
         </Box>
-
-        <IconButton 
-          onClick={() => onChange(Math.min(max, value + step))}
-          size="small"
-          disabled={value >= max || disabled}
-          sx={{ 
-            bgcolor: 'white',
-            border: '1px solid #e0e0e0',
-            borderRadius: 2,
-            transition: 'all 0.2s',
-            '&:hover': { 
-              bgcolor: 'primary.main', 
-              color: 'white',
-              transform: 'scale(1.1)',
-              boxShadow: '0 4px 8px rgba(67, 160, 71, 0.3)'
-            },
-            '&:disabled': { opacity: 0.3, ...disabled ? { bgcolor: '#e0e0e0', color: 'rgba(0,0,0,0.26)' } : {} }
-          }}
-        >
-          <AddIcon fontSize="small" />
-        </IconButton>
+        <IconButton onClick={() => onChange(Math.min(max, value + step))} size="small" disabled={value >= max || disabled} sx={{ bgcolor: 'white', border: '1px solid #e0e0e0', borderRadius: 2 }}><AddIcon fontSize="small" /></IconButton>
       </Box>
     </Box>
   );
 };
 
-// --- DATA ---
+// --- DATA CONSTANTS ---
 const MENU_ITEMS = [
   { text: 'Panel General', icon: <GridViewIcon />, path: '/dashboard' },
   { text: 'Animales', icon: <PetsIcon />, path: '/animals' },
@@ -210,23 +118,43 @@ const MENU_ITEMS = [
 
 const CATTLE_BREEDS = ['Holstein', 'Jersey', 'Angus', 'Hereford', 'Brahman', 'Simmental', 'Gyr', 'Otra'];
 const HEALTH_STATUSES = [
-  { value: 'HEALTHY', label: 'Saludable', color: 'success', desc: 'Óptimo' },
-  { value: 'OBSERVATION', label: 'Observación', color: 'warning', desc: 'Revisar' },
-  { value: 'SICK', label: 'Enfermo', color: 'error', desc: 'Tratar' },
+  { value: 'HEALTHY', label: 'Saludable', color: 'success', desc: 'Óptimo', image: HealthyCow },
+  { value: 'OBSERVATION', label: 'Observación', color: 'warning', desc: 'Revisar', image: ObservationCow },
+  { value: 'SICK', label: 'Enfermo', color: 'error', desc: 'Tratar', image: SickCow },
 ];
 
+// --- LÓGICA DE ALIMENTACIÓN REALISTA ---
+const HOURS_PER_LEVEL = 3; // 1 Nivel dura aprox 3 horas
+
 const getFeedInfo = (lvl: number) => {
-    if (lvl <= 4) return { label: 'Bajo', color: 'error', bg: '#ffebee', text: 'Atención: Nivel de alimento bajo. Necesita suministro urgente.' };
-    if (lvl <= 7) return { label: 'Medio', color: 'warning', bg: '#fff3e0', text: 'Nivel medio. Considerar reponer pronto.' };
-    if (lvl > 8) return { label: 'Alto', color: 'info', bg: '#e3f2fd', text: 'Abundante. Posible sobrepeso si se mantiene alto constantemente.' };
-    return { label: 'Óptimo', color: 'success', bg: '#e8f5e9', text: 'Nivel ideal.' };
+    const hoursLeft = lvl * HOURS_PER_LEVEL;
+    
+    if (lvl <= 2) return { 
+        label: 'Crítico', 
+        color: 'error', 
+        bg: '#ffebee', 
+        text: `⚠️ Urgente: Se agota en ~${hoursLeft} horas.`,
+        alertSeverity: 'error'
+    };
+    if (lvl <= 5) return { 
+        label: 'Bajo', 
+        color: 'warning', 
+        bg: '#fff3e0', 
+        text: `Atención: Provisión para ~${hoursLeft} horas.`,
+        alertSeverity: 'warning'
+    };
+    return { 
+        label: 'Óptimo', 
+        color: 'success', 
+        bg: '#e8f5e9', 
+        text: `Suficiente para aproximandamente ${hoursLeft} horas (${(hoursLeft/24).toFixed(1)} días).`,
+        alertSeverity: 'success'
+    };
 };
 
-// --- COMPONENTE PRINCIPAL ---
 const AnimalsPage: React.FC = () => {
   const { token, logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [stables, setStables] = useState<StableResponse[]>([]);
@@ -237,12 +165,11 @@ const AnimalsPage: React.FC = () => {
   const [editingAnimal, setEditingAnimal] = useState<Animal | null>(null);
   const [username, setUsername] = useState<string>('Usuario');
   const [stableOccupancy, setStableOccupancy] = useState<Record<number, number>>({});
-  const [searchTerm, setSearchTerm] = useState('');
+  
+  const [searchValue, setSearchValue] = useState<Animal | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' | 'warning' | 'info' }>({ open: false, message: '', severity: 'success' });
+  
   const [formData, setFormData] = useState<AnimalRequest>({ tag: '', breed: 'Holstein', weight: 450, age: 2, status: 'HEALTHY', feedLevel: 7, stableId: 0 });
-
-  // Referencia para la notificación de alimento bajo para evitar duplicados
-  const lowFeedAlertsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     if (!token) { navigate('/login'); return; }
@@ -256,62 +183,48 @@ const AnimalsPage: React.FC = () => {
     setLoading(true);
     try {
       const [aData, sData] = await Promise.all([getAllAnimalsAction(), getAllStablesAction()]);
-      setAnimals(aData.map(a => ({ ...a, feedLevel: a.feedLevel || 7 }))); // Asegura feedLevel
+      setAnimals(aData.map(a => ({ ...a, feedLevel: a.feedLevel || 7 }))); 
       setStables(sData);
       const occupancy: Record<number, number> = {};
       sData.forEach(s => occupancy[s.id] = aData.filter(a => a.stableId === s.id).length);
       setStableOccupancy(occupancy);
-
-      // Revisión de alertas después de cargar/actualizar datos
-      aData.forEach(animal => {
-        if ((animal.feedLevel || 7) <= 4 && !lowFeedAlertsRef.current.has(animal.id)) {
-            showSnackbar(`¡ALERTA DE ALIMENTO! El animal ${animal.tag} necesita reabastecimiento.`, 'warning');
-            lowFeedAlertsRef.current.add(animal.id);
-        } else if ((animal.feedLevel || 7) > 4 && lowFeedAlertsRef.current.has(animal.id)) {
-             // Limpiar alerta si el nivel sube
-             lowFeedAlertsRef.current.delete(animal.id);
-        }
-      });
-
     } catch (err) { showSnackbar('Error cargando datos', 'error'); } 
     finally { setLoading(false); }
   }, []);
 
-  // --- CONSUMO AUTOMÁTICO DE ALIMENTO (cada 1 minuto) ---
+  // --- SIMULACIÓN DE METABOLISMO ---
+  // Baja 1 nivel cada 5 minutos (300,000 ms) para ser más realista y menos caótico que 1 minuto.
   useEffect(() => {
     const intervalId = setInterval(async () => {
       setAnimals(prevAnimals => {
-        const updatedAnimals = prevAnimals.map(animal => {
-          const newFeedLevel = Math.max(0, (animal.feedLevel || 7) - 1);
+        return prevAnimals.map(animal => {
+          // Solo baja si es mayor a 0
+          const currentLevel = animal.feedLevel || 0;
+          const newFeedLevel = currentLevel > 0 ? currentLevel - 1 : 0;
           return { ...animal, feedLevel: newFeedLevel };
         });
-        updatedAnimals.forEach(animal => {
-          if (animal.feedLevel <= 4 && !lowFeedAlertsRef.current.has(animal.id)) {
-            showSnackbar(`¡ALERTA DE ALIMENTO! El animal ${animal.tag} necesita reabastecimiento.`, 'warning');
-            lowFeedAlertsRef.current.add(animal.id);
-          } else if (animal.feedLevel > 4 && lowFeedAlertsRef.current.has(animal.id)) {
-            lowFeedAlertsRef.current.delete(animal.id);
-          }
-        });
-        // Aquí se podría llamar a una función del backend para actualizar realmente los niveles
-        // updateFeedLevelsInBackend(updatedAnimals.map(a => ({ id: a.id, feedLevel: a.feedLevel })));
-        return updatedAnimals;
       });
-    }, 60000); // Cada 1 minuto baja el nivel de alimento (60000ms)
+    }, 300000); // 5 minutos = 300000ms
     return () => clearInterval(intervalId);
-  }, [loadData]);
-
+  }, []);
 
   const generateTag = () => {
     const maxId = animals.length > 0 ? Math.max(...animals.map(a => parseInt(a.tag.split('-')[1] || '0'))) : 0;
     return `BOV-${String(maxId + 1).padStart(3, '0')}`;
   };
 
-
   const handleOpenDialog = (animal?: Animal) => {
     if (animal) {
       setEditingAnimal(animal);
-      setFormData({ tag: animal.tag, breed: animal.breed, weight: animal.weight, age: animal.age, status: animal.status, feedLevel: animal.feedLevel || 7, stableId: animal.stableId });
+      setFormData({ 
+          tag: animal.tag, 
+          breed: animal.breed, 
+          weight: animal.weight, 
+          age: animal.age, 
+          status: animal.status, 
+          feedLevel: animal.feedLevel || 7, // Permitimos editar el nivel actual
+          stableId: animal.stableId 
+      });
     } else {
       setEditingAnimal(null);
       setFormData({ tag: generateTag(), breed: 'Holstein', weight: 450, age: 2, status: 'HEALTHY', feedLevel: 7, stableId: stables[0]?.id || 0 });
@@ -321,9 +234,6 @@ const AnimalsPage: React.FC = () => {
 
   const handleSubmit = async () => {
     try {
-      // Si se está editando, enviamos los datos actualizados, incluyendo el stableId si no está bloqueado.
-      // Si el establo está bloqueado, el Select está disabled, por lo que formData.stableId
-      // será el valor original, lo cual es correcto.
       if (editingAnimal) await updateAnimalAction(editingAnimal.id, formData);
       else await createAnimalAction(formData);
       setOpenDialog(false);
@@ -341,16 +251,29 @@ const AnimalsPage: React.FC = () => {
     }
   };
 
-  const filteredAnimals = animals.filter(a => a.tag.toLowerCase().includes(searchTerm.toLowerCase()) || a.breed.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredAnimals = searchValue ? animals.filter(a => a.id === searchValue.id) : animals;
 
-  const feedMeta = getFeedInfo(formData.feedLevel || 0);
+  // Lógica de Pronóstico Global
+  const getFeedingForecast = () => {
+      const criticalCount = animals.filter(a => (a.feedLevel || 0) <= 2).length;
+      const lowCount = animals.filter(a => (a.feedLevel || 0) > 2 && (a.feedLevel || 0) <= 5).length;
+      
+      if (criticalCount > 0) return { message: `ALERTA: ${criticalCount} animales necesitan alimento en las próximas 6 horas.`, color: '#ffebee', icon: <WarningIcon color="error" /> };
+      if (lowCount > 0) return { message: `Planificación: ${lowCount} animales necesitarán recarga mañana.`, color: '#fff3e0', icon: <TimeIcon color="warning" /> };
+      return { message: `Estado Óptimo: Suministros cubiertos para +24 horas.`, color: '#e8f5e9', icon: <TimelineIcon color="success" /> };
+  };
+
+  const forecast = getFeedingForecast();
+  
+  // Info de alimentación para el formulario actual
+  const currentFeedMeta = getFeedInfo(formData.feedLevel || 0);
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Box sx={{ minHeight: '100vh', width: '100%', display: 'flex', background: 'linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 50%, #ffffff 100%)', backgroundSize: '200% 200%', animation: `${backgroundMove} 15s ease infinite`, overflow: 'hidden' }}>
         
-        {/* SIDEBAR (No modificado) */}
+        {/* SIDEBAR */}
         <Box sx={{ width: '80px', display: { xs: 'none', md: 'flex' }, flexDirection: 'column', alignItems: 'center', py: 4, zIndex: 10 }}>
           <Paper elevation={0} sx={{ width: '60px', height: '90%', borderRadius: '30px', backgroundColor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.5)', display: 'flex', flexDirection: 'column', alignItems: 'center', py: 2 }}>
              <List sx={{ width: '100%', px: 1, mt: 2 }}>
@@ -365,7 +288,7 @@ const AnimalsPage: React.FC = () => {
           </Paper>
         </Box>
 
-        {/* CONTENIDO (No modificado en estructura principal) */}
+        {/* CONTENIDO */}
         <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
           <AppBar position="static" elevation={0} sx={{ bgcolor: 'transparent', pt: 2, px: 3 }}>
             <Toolbar sx={{ justifyContent: 'space-between', bgcolor: 'rgba(255,255,255,0.6)', backdropFilter: 'blur(10px)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.5)' }}>
@@ -381,16 +304,50 @@ const AnimalsPage: React.FC = () => {
           </AppBar>
 
           <Container maxWidth={false} sx={{ mt: 3, mb: 3, flexGrow: 1, overflow: 'auto' }}>
+            
+            {/* 1. SECCIÓN DE PRONÓSTICO */}
+            <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: '16px', bgcolor: forecast.color, border: '1px solid rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Avatar sx={{ bgcolor: 'white' }}>{forecast.icon}</Avatar>
+                    <Box>
+                        <Typography variant="subtitle2" fontWeight="bold" color="text.primary">ANÁLISIS DE PROVISIÓN</Typography>
+                        <Typography variant="body2" color="text.secondary">{forecast.message}</Typography>
+                    </Box>
+                </Box>
+                <Chip label="Cálculo Metabólico" size="small" variant="outlined" sx={{ borderColor: 'rgba(0,0,0,0.2)', color: 'text.secondary' }} />
+            </Paper>
+
+            {/* 2. BARRA DE HERRAMIENTAS */}
             <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-               <Paper sx={{ p: '2px 14px', display: 'flex', alignItems: 'center', flexGrow: 1, borderRadius: '12px', bgcolor: 'rgba(255,255,255,0.8)' }}>
-                    <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
-                    <TextField variant="standard" placeholder="Buscar por tag o raza..." InputProps={{ disableUnderline: true }} fullWidth value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+               <Paper sx={{ p: '2px 4px', display: 'flex', alignItems: 'center', flexGrow: 1, borderRadius: '12px', bgcolor: 'rgba(255,255,255,0.9)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                    <Autocomplete
+                        fullWidth
+                        options={animals}
+                        getOptionLabel={(option) => `${option.tag} - ${option.breed}`}
+                        value={searchValue}
+                        onChange={(event, newValue) => setSearchValue(newValue)}
+                        renderInput={(params) => (
+                            <TextField 
+                                {...params} 
+                                placeholder="Buscar por TAG o Raza..." 
+                                variant="standard"
+                                InputProps={{ ...params.InputProps, disableUnderline: true, startAdornment: <InputAdornment position="start"><SearchIcon color="action" sx={{ ml: 1 }} /></InputAdornment> }} 
+                            />
+                        )}
+                        renderOption={(props, option) => (
+                            <Box component="li" {...props} key={option.id}>
+                                <PetsIcon sx={{ mr: 2, color: 'text.secondary', fontSize: 18 }} />
+                                {option.tag} <Typography variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>({option.breed})</Typography>
+                            </Box>
+                        )}
+                    />
                 </Paper>
-                <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenDialog()} sx={{ borderRadius: '12px', fontWeight: 700, px: 3 }}>Nuevo</Button>
+                <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenDialog()} sx={{ borderRadius: '12px', fontWeight: 700, px: 4, boxShadow: '0 8px 16px rgba(67, 160, 71, 0.25)' }}>Nuevo</Button>
             </Box>
 
+            {/* 3. GRID DE TARJETAS */}
             {loading ? <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box> :
-            filteredAnimals.length === 0 ? <Paper sx={{ p: 5, textAlign: 'center', borderRadius: 4, bgcolor: 'rgba(255,255,255,0.6)' }}><Typography>No hay animales registrados.</Typography></Paper> : 
+            filteredAnimals.length === 0 ? <Paper sx={{ p: 5, textAlign: 'center', borderRadius: 4, bgcolor: 'rgba(255,255,255,0.6)' }}><Typography>No se encontraron animales.</Typography></Paper> : 
             
             <Grid container spacing={3}>
               {filteredAnimals.map((animal, index) => {
@@ -400,101 +357,46 @@ const AnimalsPage: React.FC = () => {
 
                 return (
                   <Grid item xs={12} sm={6} md={4} lg={3} key={animal.id}>
-                    <Card elevation={0} sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: 'rgba(255, 255, 255, 0.7)', backdropFilter: 'blur(10px)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.8)', animation: `${fadeInUp} 0.5s ease backwards`, animationDelay: `${index * 0.05}s`, transition: 'all 0.3s', position: 'relative', '&:hover': { transform: 'translateY(-5px)', boxShadow: '0 12px 30px rgba(46, 125, 50, 0.15)' } }}>
+                    <Card elevation={0} sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(20px)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.8)', animation: `${fadeInUp} 0.5s ease backwards`, animationDelay: `${index * 0.05}s`, transition: 'all 0.3s', position: 'relative', '&:hover': { transform: 'translateY(-8px)', boxShadow: '0 20px 40px rgba(0,0,0,0.08)' } }}>
                       
-                      {/* Indicador de Estado de Salud */}
-                      <Box sx={{ position: 'absolute', top: 20, right: 0, width: 6, height: 40, bgcolor: `${sInfo.color}.main`, borderRadius: '4px 0 0 4px' }} />
+                      <Box sx={{ position: 'absolute', top: 24, right: 0, width: 4, height: 32, bgcolor: `${sInfo.color}.main`, borderRadius: '4px 0 0 4px' }} />
                       
-                      {/* Icono animado del animal */}
-                      <Box sx={{ bgcolor: 'rgba(67, 160, 71, 0.05)', p: 2.5, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                         <Box sx={{ animation: `${pulse} 3s infinite ease-in-out` }}>
-                            {/* SVG de la vaca (No modificado) */}
-                            <svg width="80" height="80" viewBox="0 0 200 200">
-                              <circle cx="100" cy="100" r="90" fill="#E8F5E9" />
-                              <ellipse cx="100" cy="110" rx="55" ry="45" fill="#FFFFFF" />
-                              <ellipse cx="75" cy="100" rx="15" ry="20" fill="#8D6E63" />
-                              <ellipse cx="120" cy="105" rx="18" ry="22" fill="#8D6E63" />
-                              <ellipse cx="95" cy="125" rx="12" ry="15" fill="#8D6E63" />
-                              <ellipse cx="100" cy="70" rx="28" ry="32" fill="#FFFFFF" />
-                              <ellipse cx="75" cy="60" rx="8" ry="15" fill="#FFB6C1" transform="rotate(-25 75 60)" />
-                              <ellipse cx="125" cy="60" rx="8" ry="15" fill="#FFB6C1" transform="rotate(25 125 60)" />
-                              <path d="M80 50 L75 35 L78 50 Z" fill="#D2691E" />
-                              <path d="M120 50 L125 35 L122 50 Z" fill="#D2691E" />
-                              <circle cx="90" cy="70" r="4" fill="#2c3e50" />
-                              <circle cx="110" cy="70" r="4" fill="#2c3e50" />
-                              <ellipse cx="100" cy="85" rx="18" ry="12" fill="#FFB6C1" />
-                              <ellipse cx="95" cy="87" rx="3" ry="4" fill="#2c3e50" />
-                              <ellipse cx="105" cy="87" rx="3" ry="4" fill="#2c3e50" />
-                              <rect x="70" y="140" width="10" height="25" rx="5" fill="#FFFFFF" />
-                              <rect x="90" y="140" width="10" height="25" rx="5" fill="#FFFFFF" />
-                              <rect x="110" y="140" width="10" height="25" rx="5" fill="#FFFFFF" />
-                              <rect x="130" y="140" width="10" height="25" rx="5" fill="#FFFFFF" />
-                              <rect x="70" y="160" width="10" height="8" rx="2" fill="#2c3e50" />
-                              <rect x="90" y="160" width="10" height="8" rx="2" fill="#2c3e50" />
-                              <rect x="110" y="160" width="10" height="8" rx="2" fill="#2c3e50" />
-                              <rect x="130" y="160" width="10" height="8" rx="2" fill="#2c3e50" />
-                            </svg>
+                      <Box sx={{ height: 180, display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'visible', mt: 2 }}>
+                         <Box sx={{ width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', animation: `${float} 6s ease-in-out infinite` }}>
+                            <img src={sInfo.image} alt={sInfo.label} style={{ width: '85%', height: '100%', objectFit: 'contain', filter: 'drop-shadow(0 10px 15px rgba(0,0,0,0.15))' }} />
                          </Box>
                       </Box>
                       
-                      {/* Contenido principal (No modificado) */}
-                      <CardContent sx={{ pt: 2, pb: 1, flexGrow: 1 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                           <Typography variant="h6" fontWeight="bold" color="primary.dark">{animal.tag}</Typography>
-                           <Chip label={sInfo.label} color={sInfo.color as any} size="small" variant="outlined" sx={{ fontWeight: 600, border: 'none', bgcolor: 'rgba(0,0,0,0.05)' }} />
+                      <CardContent sx={{ pt: 1, pb: 1, px: 3, flexGrow: 1 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                           <Typography variant="h5" fontWeight="800" color="text.primary">{animal.tag}</Typography>
+                           <Chip label={sInfo.label} color={sInfo.color as any} size="small" sx={{ fontWeight: 700, height: 20, fontSize: '0.65rem' }} />
                         </Box>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            <Box component="span" fontWeight="bold">Raza:</Box> {animal.breed}
-                        </Typography>
-                        
-                        <Divider sx={{ my: 1 }} />
+                        <Typography variant="body2" color="text.secondary" fontWeight="500" sx={{ mb: 2 }}>{animal.breed}</Typography>
+                        <Divider sx={{ my: 1.5, borderStyle: 'dashed' }} />
                         
                         <Grid container spacing={1}>
-                            {/* Fila 1: Propietario y Peso */}
-                            <Grid item xs={6}><Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><OwnerIcon fontSize="small" color="action" /><Typography variant="caption" color="text.secondary">Dueño: <Box component="span" fontWeight="bold">{animal.ownerUsername}</Box></Typography></Box></Grid>
-                            <Grid item xs={6}><Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><WeightIcon fontSize="small" color="action" /><Typography variant="caption" color="text.secondary">Peso: <Box component="span" fontWeight="bold">{animal.weight}kg</Box></Typography></Box></Grid>
+                            <Grid item xs={6}><Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><OwnerIcon fontSize="small" sx={{ color: '#90a4ae', fontSize: 16 }} /><Typography variant="caption" color="text.secondary" fontWeight="500">Dueño: {animal.ownerUsername}</Typography></Box></Grid>
+                            <Grid item xs={6}><Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><WeightIcon fontSize="small" sx={{ color: '#90a4ae', fontSize: 16 }} /><Typography variant="caption" color="text.secondary" fontWeight="500">{animal.weight}kg</Typography></Box></Grid>
                             
-                            {/* Fila 2: Edad y Establo */}
-                            <Grid item xs={6}><Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><CakeIcon fontSize="small" color="action" /><Typography variant="caption" color="text.secondary">Edad: <Box component="span" fontWeight="bold">{animal.age} a</Box></Typography></Box></Grid>
                             <Grid item xs={6}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, p: 0.5, bgcolor: 'rgba(0,0,0,0.03)', borderRadius: 1 }}>
-                                    <HouseSidingIcon fontSize="small" color="primary" />
-                                    <Typography variant="caption" fontWeight="600" color="primary.dark">
-                                        <Box component="span" fontWeight="bold">{stable?.name || 'N/A'}</Box>
-                                    </Typography>
-                                </Box>
+                                <Chip icon={<LocationIcon sx={{ fontSize: '14px !important', color: 'white !important' }} />} label={stable?.name || 'N/A'} size="small" sx={{ bgcolor: 'secondary.main', color: 'white', fontWeight: 'bold', fontSize: '0.7rem', height: 22 }} />
                             </Grid>
 
-                            {/* Fila 3: Nivel de Alimentación (Barra Dinámica) */}
-                            <Grid item xs={12} sx={{ mt: 1 }}>
-                                <Tooltip title={fInfo.text} arrow>
-                                    <Box>
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                                            <Typography variant="caption" color="text.secondary">Alimento ({fInfo.label}):</Typography>
-                                            <Typography variant="caption" fontWeight="bold" color={`${fInfo.color}.main`}>{animal.feedLevel}/10</Typography>
-                                        </Box>
-                                        <LinearProgress 
-                                            variant="determinate" 
-                                            value={(animal.feedLevel || 0) * 10} 
-                                            color={fInfo.color as any} 
-                                            sx={{ 
-                                                bgcolor: 'rgba(0,0,0,0.05)', 
-                                                '& .MuiLinearProgress-bar': { 
-                                                    transition: 'transform 1s linear' // Animación suave
-                                                } 
-                                            }}
-                                        />
-                                    </Box>
-                                </Tooltip>
+                            <Grid item xs={12} sx={{ mt: 1.5 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                    <Typography variant="caption" color="text.secondary">Alimento:</Typography>
+                                    <Typography variant="caption" fontWeight="bold" color={`${fInfo.color}.main`}>{animal.feedLevel}/10</Typography>
+                                </Box>
+                                <LinearProgress variant="determinate" value={(animal.feedLevel || 0) * 10} color={fInfo.color as any} sx={{ borderRadius: 4, height: 6, bgcolor: alpha('#000', 0.05) }} />
+                                <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'text.secondary', fontSize: '0.65rem' }}>{fInfo.text}</Typography>
                             </Grid>
                         </Grid>
-
                       </CardContent>
                       
-                      {/* Acciones */}
-                      <CardActions sx={{ justifyContent: 'center', pb: 2 }}>
-                        <IconButton size="small" onClick={() => handleOpenDialog(animal)} sx={{ bgcolor: 'rgba(33, 150, 243, 0.1)', color: '#1976d2', mx: 1 }}><EditIcon /></IconButton>
-                        <IconButton size="small" onClick={() => confirmDelete(animal.id)} sx={{ bgcolor: 'rgba(244, 67, 54, 0.1)', color: '#d32f2f', mx: 1 }}><DeleteIcon /></IconButton>
+                      <CardActions sx={{ justifyContent: 'center', pb: 2, pt: 0 }}>
+                        <IconButton size="small" onClick={() => handleOpenDialog(animal)} sx={{ bgcolor: '#e3f2fd', color: '#1976d2', mx: 1 }}><EditIcon fontSize="small" /></IconButton>
+                        <IconButton size="small" onClick={() => confirmDelete(animal.id)} sx={{ bgcolor: '#ffebee', color: '#d32f2f', mx: 1 }}><DeleteIcon fontSize="small" /></IconButton>
                       </CardActions>
                     </Card>
                   </Grid>
@@ -504,258 +406,92 @@ const AnimalsPage: React.FC = () => {
           </Container>
         </Box>
 
-        {/* --- DIÁLOGO FORMULARIO (Diseño Limpio) --- */}
-        <Dialog 
-            open={openDialog} 
-            TransitionComponent={Transition} 
-            keepMounted 
-            onClose={() => setOpenDialog(false)} 
-            maxWidth="sm" 
-            fullWidth
-            PaperProps={{ sx: { p: 2 } }}
-        >
+        {/* --- DIÁLOGO FORMULARIO --- */}
+        <Dialog open={openDialog} TransitionComponent={Transition} keepMounted onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { p: 2 } }}>
           <DialogTitle sx={{ px: 2, pt: 2, pb: 1 }}>
              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                  <Box>
-                    <Typography variant="h6" fontWeight="700" color="primary.dark">
-                        {editingAnimal ? 'Editar Expediente' : 'Nuevo Registro'}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                        Información clínica y ubicación del animal
-                    </Typography>
+                    <Typography variant="h6" fontWeight="700" color="primary.dark">{editingAnimal ? 'Editar Expediente' : 'Nuevo Registro'}</Typography>
+                    <Typography variant="caption" color="text.secondary">Ajuste de datos y alimentación</Typography>
                  </Box>
-                 <Avatar sx={{ bgcolor: 'rgba(67, 160, 71, 0.1)', color: 'primary.main', width: 42, height: 42 }}>
-                     <PetsIcon />
-                 </Avatar>
+                 <Avatar sx={{ bgcolor: 'rgba(67, 160, 71, 0.1)', color: 'primary.main' }}><PetsIcon /></Avatar>
              </Box>
           </DialogTitle>
-
           <DialogContent sx={{ px: 2, py: 2 }}>
             <Grid container spacing={2.5}>
-                
-                {/* SECCIÓN 1: IDENTIDAD (No modificada) */}
+                {/* ... Campos de Identificación y Métricas (Igual) ... */}
                 <Grid item xs={12}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, mb: 1.5, fontWeight: 700, display: 'block' }}>
-                        Identificación
-                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, mb: 1.5, fontWeight: 700, display: 'block' }}>Identificación</Typography>
                     <Grid container spacing={2}>
                         <Grid item xs={12} sm={6}>
-                            <TextField 
-                                label="Tag ID" 
-                                value={formData.tag} 
-                                fullWidth disabled 
-                                variant="outlined"
-                                InputProps={{ 
-                                    startAdornment: <InputAdornment position="start"><TagIcon color="action" /></InputAdornment>
-                                }}
-                                helperText={
-                                    <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                                        <AutoIcon sx={{ fontSize: 14, color: 'primary.main' }} />
-                                        <Typography variant="caption" color="primary.main" fontWeight="600">
-                                            Generado automáticamente para evitar duplicados
-                                        </Typography>
-                                    </Box>
-                                }
-                            />
+                            <TextField label="Tag ID" value={formData.tag} fullWidth disabled variant="outlined" InputProps={{ startAdornment: <InputAdornment position="start"><TagIcon color="action" /></InputAdornment> }} />
                         </Grid>
                         <Grid item xs={12} sm={6}>
-                            <FormControl fullWidth variant="outlined">
-                                <InputLabel>Raza</InputLabel>
-                                <Select 
-                                    label="Raza"
-                                    value={formData.breed} 
-                                    onChange={(e) => setFormData({...formData, breed: e.target.value})}
-                                    startAdornment={<InputAdornment position="start"><PetsIcon fontSize="small" /></InputAdornment>}
-                                >
-                                    {CATTLE_BREEDS.map(b => <MenuItem key={b} value={b}>{b}</MenuItem>)}
-                                </Select>
-                            </FormControl>
+                            <FormControl fullWidth variant="outlined"><InputLabel>Raza</InputLabel><Select label="Raza" value={formData.breed} onChange={(e) => setFormData({...formData, breed: e.target.value})} startAdornment={<InputAdornment position="start"><PetsIcon fontSize="small" /></InputAdornment>}>{CATTLE_BREEDS.map(b => <MenuItem key={b} value={b}>{b}</MenuItem>)}</Select></FormControl>
                         </Grid>
                     </Grid>
                 </Grid>
-
                 <Grid item xs={12}><Divider /></Grid>
-
-                {/* SECCIÓN 2: MÉTRICAS CORPORALES (No modificada) */}
                 <Grid item xs={12}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, mb: 1.5, fontWeight: 700, display: 'block' }}>
-                        Métricas Corporales
-                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, mb: 1.5, fontWeight: 700, display: 'block' }}>Métricas & Salud</Typography>
                     <Grid container spacing={2}>
-                        <Grid item xs={12} sm={6}>
-                            <ScrollNumberPicker 
-                                label="Peso Corporal" 
-                                value={formData.weight} 
-                                onChange={(val) => setFormData({...formData, weight: val})} 
-                                min={50} 
-                                max={1200} 
-                                step={10} 
-                                unit="kg"
-                                icon={<WeightIcon fontSize="small" />}
-                            />
-                        </Grid>
-                        <Grid item xs={12} sm={6}>
-                            <ScrollNumberPicker 
-                                label="Edad del Animal" 
-                                value={formData.age} 
-                                onChange={(val) => setFormData({...formData, age: val})} 
-                                min={0} 
-                                max={25} 
-                                step={1} 
-                                unit="años"
-                                icon={<CakeIcon fontSize="small" />}
-                            />
-                        </Grid>
+                        <Grid item xs={6}><ScrollNumberPicker label="Peso" value={formData.weight} onChange={(val) => setFormData({...formData, weight: val})} min={50} max={1200} step={10} unit="kg" icon={<WeightIcon fontSize="small" />} /></Grid>
+                        <Grid item xs={6}><ScrollNumberPicker label="Edad" value={formData.age} onChange={(val) => setFormData({...formData, age: val})} min={0} max={25} step={1} unit="años" icon={<CakeIcon fontSize="small" />} /></Grid>
+                        
+                        {/* ALIMENTACIÓN EDITABLE Y CON AVISO */}
                         <Grid item xs={12}>
                             <ScrollNumberPicker 
-                                label="Nivel de Alimentación" 
+                                label="Nivel de Alimentación (Editable)" 
                                 value={formData.feedLevel || 7} 
                                 onChange={(val) => setFormData({...formData, feedLevel: val})} 
                                 min={0} 
                                 max={10} 
                                 step={1} 
-                                unit={`/10 - ${feedMeta.label}`}
-                                icon={<WaterDropIcon fontSize="small" />}
-                                disabled={!!editingAnimal} // Se deshabilita la edición de FeedLevel
+                                unit={`/10`} 
+                                icon={<FeedIcon fontSize="small" />} 
+                                // YA NO ESTÁ DISABLED
+                                disabled={false}
                             />
-                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontStyle: 'italic' }}>
-                                <Box component="span" fontWeight="bold">Nota:</Box> El nivel de alimentación se actualiza automáticamente con el consumo.
-                            </Typography>
+                            
+                            {/* AVISO DE ESTIMACIÓN EN TIEMPO REAL */}
+                            <Alert 
+                                severity={currentFeedMeta.alertSeverity as any} 
+                                sx={{ mt: 1, borderRadius: 2 }}
+                                icon={currentFeedMeta.alertSeverity === 'success' ? <TimeIcon /> : <WarningIcon />}
+                            >
+                                {currentFeedMeta.text}
+                            </Alert>
                         </Grid>
                     </Grid>
                 </Grid>
-
+                
+                {/* ... Ubicación y Estado ... */}
                 <Grid item xs={12}><Divider /></Grid>
-
-                {/* SECCIÓN 3: ESTADO Y UBICACIÓN (MODIFICADA) */}
                 <Grid item xs={12}>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 1, mb: 1.5, fontWeight: 700, display: 'block' }}>
-                        Ubicación y Estado
-                    </Typography>
                     <Grid container spacing={2}>
-                        <Grid item xs={12} sm={6} sx={{ position: 'relative' }}> {/* Contenedor para el Select y la capa de bloqueo */}
-                            <FormControl fullWidth>
-                                <InputLabel>Establo Asignado</InputLabel>
-                                <Select 
-                                    label="Establo Asignado"
-                                    value={formData.stableId} 
-                                    onChange={(e) => setFormData({...formData, stableId: Number(e.target.value)})}
-                                    startAdornment={<InputAdornment position="start"><HouseSidingIcon fontSize="small" /></InputAdornment>}
-                                    // Mantenemos disabled=true para que el campo se vea grisado y no sea interactivo
-                                    disabled={!!editingAnimal} 
-                                >
-                                    {stables.map(s => {
-                                        const occupied = stableOccupancy[s.id] || 0;
-                                        const isFull = (s.capacity - occupied) <= 0;
-                                        const isDisabled = isFull && (!editingAnimal || editingAnimal.stableId !== s.id);
-                                        return (
-                                            <MenuItem key={s.id} value={s.id} disabled={isDisabled}>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                                                    <Typography variant="body2">{s.name}</Typography>
-                                                    <Chip label={`${occupied}/${s.capacity}`} size="small" sx={{ height: 20, fontSize: '0.7rem', bgcolor: isFull ? '#ffebee' : '#e8f5e9', color: isFull ? 'error.main' : 'success.main' }} />
-                                                </Box>
-                                            </MenuItem>
-                                        );
-                                    })}
-                                </Select>
-                            </FormControl>
-
-                            {/* CAPA DE BLOQUEO SUPERPUESTA */}
-                            {!!editingAnimal && (
-                                <Box
-                                    sx={{
-                                        position: 'absolute',
-                                        top: 0,
-                                        left: 0,
-                                        right: 0,
-                                        bottom: 0,
-                                        zIndex: 100, // Asegura que esté por encima del Select
-                                        borderRadius: '12px',
-                                        backgroundColor: alpha(theme.palette.background.default, 0.9), // Fondo semi-transparente
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        p: 1,
-                                        textAlign: 'center',
-                                        border: `1px solid ${theme.palette.error.light}`,
-                                        transition: 'opacity 0.3s'
-                                    }}
-                                >
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                        <InfoIcon fontSize="small" color="error" />
-                                        <Typography variant="caption" color="error.dark" fontWeight="600">
-                                           <Box component="span" fontWeight="bold">Establo Bloqueado:</Box> Modificación solo para Administradores.
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                            )}
-                        </Grid>
-                        
-                        <Grid item xs={12} sm={6}>
-                            <FormControl fullWidth>
-                                <InputLabel>Estado de Salud</InputLabel>
-                                <Select 
-                                    label="Estado de Salud"
-                                    value={formData.status} 
-                                    onChange={(e) => setFormData({...formData, status: e.target.value})}
-                                    startAdornment={<InputAdornment position="start"><LocalHospitalIcon fontSize="small" /></InputAdornment>}
-                                >
-                                    {HEALTH_STATUSES.map(s => (
-                                        <MenuItem key={s.value} value={s.value}>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: `${s.color}.main` }} />
-                                                {s.label}
-                                            </Box>
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                        </Grid>
+                        <Grid item xs={12} sm={6}><FormControl fullWidth><InputLabel>Establo</InputLabel><Select label="Establo" value={formData.stableId} onChange={(e) => setFormData({...formData, stableId: Number(e.target.value)})} disabled={!!editingAnimal}>{stables.map(s => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}</Select></FormControl></Grid>
+                        <Grid item xs={12} sm={6}><FormControl fullWidth><InputLabel>Estado Salud</InputLabel><Select label="Estado Salud" value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value})}>{HEALTH_STATUSES.map(s => <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>)}</Select></FormControl></Grid>
                     </Grid>
                 </Grid>
-
             </Grid>
           </DialogContent>
           <DialogActions sx={{ p: 3, bgcolor: '#fafafa', borderTop: '1px solid #f0f0f0' }}>
-            <Button onClick={() => setOpenDialog(false)} color="inherit" sx={{ borderRadius: 3, textTransform: 'none', color: 'text.secondary', px: 3 }}>
-                Cancelar
-            </Button>
-            <Button onClick={handleSubmit} variant="contained" sx={{ borderRadius: 3, px: 5, py: 1, fontWeight: 'bold', boxShadow: '0 8px 16px rgba(67, 160, 71, 0.25)', textTransform: 'none' }}>
-                {editingAnimal ? 'Guardar Cambios' : 'Registrar Animal'}
-            </Button>
+            <Button onClick={() => setOpenDialog(false)} color="inherit">Cancelar</Button>
+            <Button onClick={handleSubmit} variant="contained" sx={{ px: 4, borderRadius: 3 }}>{editingAnimal ? 'Guardar Cambios' : 'Registrar'}</Button>
           </DialogActions>
         </Dialog>
 
-        {/* --- DIÁLOGO ELIMINAR (No modificado) --- */}
-        <Dialog open={openDeleteDialog} TransitionComponent={Transition} keepMounted onClose={() => setOpenDeleteDialog(false)} PaperProps={{ sx: { borderRadius: '24px', p: 2, minWidth: 320 } }}>
+        {/* --- DIÁLOGO ELIMINAR --- */}
+        <Dialog open={openDeleteDialog} TransitionComponent={Transition} onClose={() => setOpenDeleteDialog(false)} PaperProps={{ sx: { borderRadius: '24px', p: 2, minWidth: 320 } }}>
             <DialogTitle sx={{ textAlign: 'center', color: 'error.main' }}><WarningIcon sx={{ fontSize: 60, mb: 1, display: 'block', mx: 'auto' }} />¿Eliminar registro?</DialogTitle>
             <DialogContent sx={{ textAlign: 'center' }}><Typography variant="body1" color="text.secondary">Esta acción no se puede deshacer.</Typography></DialogContent>
             <DialogActions sx={{ justifyContent: 'center', pb: 2, gap: 2 }}>
-                <Button variant="outlined" onClick={() => setOpenDeleteDialog(false)} sx={{ borderRadius: 3 }}>Cancelar</Button>
-                <Button variant="contained" color="error" onClick={handleDelete} sx={{ borderRadius: 3 }}>Confirmar</Button>
+                <Button variant="outlined" onClick={() => setOpenDeleteDialog(false)}>Cancelar</Button>
+                <Button variant="contained" color="error" onClick={handleDelete}>Confirmar</Button>
             </DialogActions>
         </Dialog>
         
-        {/* --- SNACKBAR (Notificación estilo isla) (No modificado) --- */}
-        <Snackbar 
-            open={snackbar.open} 
-            autoHideDuration={4000} 
-            onClose={() => setSnackbar({...snackbar, open: false})}
-            anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-        >
-            <Alert 
-                severity={snackbar.severity} 
-                onClose={() => setSnackbar({...snackbar, open: false})} 
-                sx={{ 
-                    width: '100%', 
-                    borderRadius: 3, 
-                    boxShadow: '0 10px 20px rgba(0,0,0,0.1)',
-                    bgcolor: snackbar.severity === 'warning' ? '#fff8e1' : undefined
-                }}
-            >
-                {snackbar.message}
-            </Alert>
-        </Snackbar>
+        <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({...snackbar, open: false})}><Alert severity={snackbar.severity} sx={{ width: '100%', borderRadius: 3 }}>{snackbar.message}</Alert></Snackbar>
 
       </Box>
     </ThemeProvider>
