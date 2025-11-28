@@ -133,14 +133,14 @@ const getFeedInfo = (lvl: number) => {
         label: 'Crítico', 
         color: 'error', 
         bg: '#ffebee', 
-        text: `⚠️ Urgente: Se agota en ~${hoursLeft} horas.`,
+        text: `Urgente: Se agota en ${hoursLeft} horas.`,
         alertSeverity: 'error'
     };
     if (lvl <= 5) return { 
         label: 'Bajo', 
         color: 'warning', 
         bg: '#fff3e0', 
-        text: `Atención: Provisión para ~${hoursLeft} horas.`,
+        text: `Atención: Provisión para ${hoursLeft} horas.`,
         alertSeverity: 'warning'
     };
     return { 
