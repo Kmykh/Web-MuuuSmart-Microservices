@@ -5,7 +5,8 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import AnimalsPage from './pages/AnimalsPage';
 import StablesPage from './pages/StablesPage';
-import CampaignsPage from './pages/CampaignsPage'; // Asegúrate de que esta importación esté correcta
+import CampaignsPage from './pages/CampaignsPage';
+import HealthPage from './pages/HealthPage';
 import { useAuth } from './contexts/AuthContext';
 
 const App: React.FC = () => {
@@ -34,7 +35,11 @@ const App: React.FC = () => {
         path="/campaigns" 
         element={token ? <CampaignsPage /> : <Navigate to="/login" replace />} 
       />
-      {/* Añadir más rutas protegidas aquí (Health, Production, Reports) */}
+      <Route 
+        path="/health" 
+        element={token ? <HealthPage /> : <Navigate to="/login" replace />} 
+      />
+      {/* Añadir más rutas protegidas aquí (Production, Reports) */}
 
       {/* Redirección por defecto */}
       <Route
