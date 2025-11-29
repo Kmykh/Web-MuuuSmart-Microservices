@@ -29,6 +29,18 @@ export default defineConfig(({ mode }) => {
         '/health': {
           target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
           changeOrigin: true
+        },
+        '/milk': {
+          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          changeOrigin: true
+        },
+        '/weights': {
+          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          changeOrigin: true
+        },
+        '/analytics': {
+          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          changeOrigin: true
         }
       }
     }
