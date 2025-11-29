@@ -41,6 +41,10 @@ export default defineConfig(({ mode }) => {
         '/analytics': {
           target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
           changeOrigin: true
+        },
+        '/reports': {
+          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          changeOrigin: true
         }
       }
     }
