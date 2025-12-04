@@ -49,7 +49,7 @@ const theme = createTheme({
 });
 
 const RegisterPage: React.FC = () => {
-  const { register } = useAuth();
+  const { register, token } = useAuth();
   const navigate = useNavigate();
 
   const [username, setUsername] = useState('');
@@ -61,6 +61,13 @@ const RegisterPage: React.FC = () => {
   // Estados para fortaleza de contraseña
   const [strength, setStrength] = useState(0);
   const [strengthColor, setStrengthColor] = useState<'error' | 'warning' | 'success'>('error');
+
+  // Si ya tiene token válido, redirigir al dashboard
+  useEffect(() => {
+    if (token) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [token, navigate]);
 
   useEffect(() => {
     let score = 0;
@@ -81,7 +88,7 @@ const RegisterPage: React.FC = () => {
     setError(null);
     try {
       await register({ username, email, password });
-      navigate('/login');
+      // La redirección la maneja AuthContext automáticamente
     } catch (err) {
       setError('Error al registrarse');
     }

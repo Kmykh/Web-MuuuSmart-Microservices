@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, AppBar, Toolbar, Typography, Container, Paper, IconButton, Avatar, Chip,
   CssBaseline, Tooltip, List, ListItemButton, ListItemIcon, Divider, Grid, Card, CardContent,
-  TextField, Button, CircularProgress, Stack
+  TextField, Button, CircularProgress, Stack, Dialog, DialogTitle, DialogContent, DialogActions,
+  Stepper, Step, StepLabel, Fade, Slide
 } from '@mui/material';
 import { createTheme, ThemeProvider, alpha } from '@mui/material/styles';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,7 +18,8 @@ import {
   WaterDrop as WaterDropIcon, Flag as FlagIcon, BarChart as BarChartIcon,
   Send as SendIcon, TrendingUp as TrendingUpIcon, WarningAmber as WarningIcon,
   CheckCircle as CheckIcon, Info as InfoIcon, AutoAwesome as SparkleIcon,
-  TipsAndUpdates as IdeaIcon
+  TipsAndUpdates as IdeaIcon, Close as CloseIcon, Security as SecurityIcon,
+  PlayArrow as PlayIcon, NavigateNext as NextIcon, NavigateBefore as BackIcon
 } from '@mui/icons-material';
 
 // Imports de Lógica
@@ -25,8 +27,9 @@ import { getAllAnimalsAction } from '../application/animal';
 import { getAllStablesAction } from '../application/stable';
 import { sendChatMessageAction } from '../application/assistant';
 
-// Imagen (Asegúrate de que la ruta sea correcta en tu proyecto)
+// Assets
 import vacaSanaImg from '../assets/vaca_sana.png';
+import bienvenidaVideo from '../assets/bienveenidamorita.mp4';
 
 // --- ANIMACIONES ---
 const backgroundMove = keyframes`
@@ -89,11 +92,51 @@ const MENU_ITEMS = [
   { text: 'Reportes', icon: <BarChartIcon />, path: '/reports' },
 ];
 
+// --- PASOS DEL ONBOARDING ---
+const onboardingSteps = [
+  {
+    title: '',
+    description: '',
+    isVideo: true
+  },
+  {
+    title: 'Gestión de Ganado',
+    description: 'Sistema integral para el registro y monitoreo de cada animal. Control detallado de razas, edades, pesos y estados de salud en tiempo real.',
+    icon: <PetsIcon sx={{ fontSize: 70, color: '#fff' }} />,
+    gradient: 'linear-gradient(135deg, #43a047 0%, #2e7d32 100%)'
+  },
+  {
+    title: 'Administración de Establos',
+    description: 'Gestiona la capacidad y ocupación de tus instalaciones. Optimización inteligente del espacio para mejorar las condiciones de tu ganado.',
+    icon: <HouseSidingIcon sx={{ fontSize: 70, color: '#fff' }} />,
+    gradient: 'linear-gradient(135deg, #0288d1 0%, #01579b 100%)'
+  },
+  {
+    title: 'Control Sanitario',
+    description: 'Registro completo de vacunas, tratamientos y revisiones médicas. Sistema de alertas y recordatorios para mantener la salud óptima del hato.',
+    icon: <LocalHospitalIcon sx={{ fontSize: 70, color: '#fff' }} />,
+    gradient: 'linear-gradient(135deg, #e53935 0%, #b71c1c 100%)'
+  },
+  {
+    title: 'Analítica Avanzada',
+    description: 'Reportes detallados y visualización de estadísticas en tiempo real. Toma decisiones estratégicas basadas en datos precisos.',
+    icon: <BarChartIcon sx={{ fontSize: 70, color: '#fff' }} />,
+    gradient: 'linear-gradient(135deg, #ff9800 0%, #e65100 100%)'
+  }
+];
+
 const DashboardPage: React.FC = () => {
-  const { token, logout } = useAuth();
+  const { token, logout, showWelcomeNotification, clearWelcomeNotification, isNewUser, clearNewUser } = useAuth();
   const navigate = useNavigate();
+  const videoRef = useRef<HTMLVideoElement>(null);
   
   const [username, setUsername] = useState<string>('Usuario');
+  const [showSecurityNotification, setShowSecurityNotification] = useState(false);
+  
+  // Onboarding states
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [videoEnded, setVideoEnded] = useState(false);
   
   // Data States
   const [animals, setAnimals] = useState<any[]>([]);
@@ -105,12 +148,60 @@ const DashboardPage: React.FC = () => {
   const [chatResponse, setChatResponse] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
 
+  // Mostrar notificación de bienvenida con info de seguridad (solo login)
+  useEffect(() => {
+    if (showWelcomeNotification) {
+      setShowSecurityNotification(true);
+      clearWelcomeNotification();
+    }
+  }, [showWelcomeNotification, clearWelcomeNotification]);
+
+  // Mostrar onboarding para nuevos usuarios (solo registro)
+  useEffect(() => {
+    if (isNewUser) {
+      setShowOnboarding(true);
+      setOnboardingStep(0);
+      setVideoEnded(false);
+    }
+  }, [isNewUser]);
+
+  const handleCloseOnboarding = () => {
+    setShowOnboarding(false);
+    setOnboardingStep(0);
+    setVideoEnded(false);
+    clearNewUser();
+  };
+
+  const handleNextStep = () => {
+    if (onboardingStep < onboardingSteps.length - 1) {
+      setOnboardingStep(prev => prev + 1);
+    } else {
+      handleCloseOnboarding();
+    }
+  };
+
+  const handlePrevStep = () => {
+    if (onboardingStep > 0) {
+      setOnboardingStep(prev => prev - 1);
+    }
+  };
+
+  const handleVideoEnd = () => {
+    setVideoEnded(true);
+    // Avanzar automáticamente al siguiente paso cuando termina el video
+    setTimeout(() => {
+      if (onboardingStep < onboardingSteps.length - 1) {
+        setOnboardingStep(prev => prev + 1);
+      }
+    }, 500); // Pequeña pausa para transición suave
+  };
+
   useEffect(() => {
     if (!token) { navigate('/login'); return; }
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
       setUsername(payload.sub || payload.username || 'Ganadero');
-    } catch (error) { logout(); }
+    } catch (error) { logout('expired'); }
 
     loadDashboardData();
   }, [token]);
@@ -399,6 +490,372 @@ const DashboardPage: React.FC = () => {
           </Container>
         </Box>
       </Box>
+
+      {/* Modal de bienvenida con info de seguridad */}
+      <Dialog
+        open={showSecurityNotification}
+        onClose={() => setShowSecurityNotification(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            overflow: 'hidden'
+          }
+        }}
+      >
+        <Box sx={{ 
+          background: 'linear-gradient(135deg, #43a047 0%, #66bb6a 100%)', 
+          py: 2, 
+          px: 3,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <SecurityIcon sx={{ color: 'white', fontSize: 28 }} />
+            <Typography variant="h6" sx={{ color: 'white', fontWeight: 700 }}>
+              Información de Seguridad
+            </Typography>
+          </Box>
+          <IconButton 
+            onClick={() => setShowSecurityNotification(false)}
+            sx={{ color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        
+        <DialogContent sx={{ py: 4, px: 4 }}>
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Box sx={{ 
+              width: 80, 
+              height: 80, 
+              bgcolor: '#e8f5e9', 
+              borderRadius: '50%', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              mx: 'auto',
+              mb: 2
+            }}>
+              <SecurityIcon sx={{ fontSize: 40, color: '#43a047' }} />
+            </Box>
+            <Typography variant="h5" fontWeight="bold" gutterBottom color="primary.dark">
+              ¡Bienvenido a MuuSmart! 🐮
+            </Typography>
+          </Box>
+          
+          <Typography variant="body1" color="text.secondary" paragraph sx={{ textAlign: 'center' }}>
+            Por razones de <strong>seguridad y protección de tus datos</strong>, tu sesión tiene una duración máxima de <strong>1 hora</strong>.
+          </Typography>
+          
+          <Box sx={{ bgcolor: '#fff3e0', p: 2, borderRadius: 2, border: '1px solid #ffcc02', mt: 2 }}>
+            <Typography variant="body2" color="text.primary">
+              <strong>💡 Recomendaciones:</strong>
+            </Typography>
+            <Typography variant="body2" color="text.secondary" component="ul" sx={{ pl: 2, mt: 1 }}>
+              <li>Guarda tu trabajo frecuentemente</li>
+              <li>Verifica el temporizador en la barra superior</li>
+              <li>Si la sesión expira, vuelve a iniciar sesión</li>
+            </Typography>
+          </Box>
+        </DialogContent>
+        
+        <DialogActions sx={{ px: 4, pb: 3 }}>
+          <Button
+            onClick={() => setShowSecurityNotification(false)}
+            variant="contained"
+            fullWidth
+            size="large"
+            sx={{ 
+              borderRadius: 2, 
+              py: 1.5,
+              fontWeight: 700,
+              bgcolor: '#43a047',
+              '&:hover': { bgcolor: '#2e7d32' }
+            }}
+          >
+            Entendido, ¡Comenzar!
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Modal de Onboarding para nuevos usuarios */}
+      <Dialog
+        open={showOnboarding}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 0,
+            overflow: 'hidden',
+            minHeight: '60vh',
+            bgcolor: '#dedee2'
+          }
+        }}
+      >
+        {/* Header con botón de cerrar */}
+        <Box sx={{ 
+          position: 'absolute', 
+          top: 16, 
+          right: 16, 
+          zIndex: 10 
+        }}>
+          <IconButton 
+            onClick={handleCloseOnboarding}
+            sx={{ 
+              bgcolor: 'rgba(255,255,255,0.8)', 
+              '&:hover': { bgcolor: 'rgba(255,255,255,1)' }
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </Box>
+
+        <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column' }}>
+          {/* Contenido del paso */}
+          <Box sx={{ 
+            flex: 1, 
+            display: 'flex', 
+            flexDirection: onboardingSteps[onboardingStep].isVideo ? 'row' : 'column',
+            alignItems: 'center', 
+            justifyContent: 'center',
+            width: '100%',
+            minHeight: '50vh'
+          }}>
+            <Fade in={true} timeout={500} key={onboardingStep}>
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: onboardingSteps[onboardingStep].isVideo ? 'row' : 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+                height: '100%'
+              }}>
+                {onboardingSteps[onboardingStep].isVideo ? (
+                  // Layout horizontal: Video a la izquierda, texto a la derecha
+                  <>
+                    <Box sx={{ 
+                      flex: '0 0 50%',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      bgcolor: '#dedee2',
+                      height: '100%',
+                      minHeight: '50vh'
+                    }}>
+                      <video
+                        ref={videoRef}
+                        src={bienvenidaVideo}
+                        autoPlay
+                        playsInline
+                        controls
+                        onEnded={handleVideoEnd}
+                        style={{ 
+                          width: '100%',
+                          maxWidth: 500,
+                          height: 'auto',
+                          display: 'block'
+                        }}
+                      />
+                    </Box>
+                    <Box sx={{ 
+                      flex: '0 0 50%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      alignItems: 'flex-start',
+                      p: 5,
+                      bgcolor: '#dedee2'
+                    }}>
+                      <Typography 
+                        variant="h2" 
+                        fontWeight="800" 
+                        sx={{ 
+                          color: '#2e7d32',
+                          mb: 3,
+                          lineHeight: 1.1,
+                          letterSpacing: '-0.02em',
+                          animation: `${fadeInUp} 0.5s ease`
+                        }}
+                      >
+                        Bienvenido a<br/>MuuSmart
+                      </Typography>
+                      <Typography 
+                        variant="h5" 
+                        sx={{ 
+                          color: '#444',
+                          lineHeight: 1.6,
+                          fontWeight: 500,
+                          animation: `${fadeInUp} 0.5s ease 0.1s both`
+                        }}
+                      >
+                        Tu asistente inteligente para la gestión ganadera.
+                      </Typography>
+                      <Typography 
+                        variant="body1" 
+                        sx={{ 
+                          color: '#666',
+                          mt: 2,
+                          lineHeight: 1.7,
+                          fontSize: '1.1rem',
+                          animation: `${fadeInUp} 0.5s ease 0.2s both`
+                        }}
+                      >
+                        Soy Morita, y estoy aquí para ayudarte a administrar tu ganado de manera eficiente.
+                      </Typography>
+                    </Box>
+                  </>
+                ) : (
+                  // Layout futurista para otros pasos
+                  <Box sx={{ 
+                    textAlign: 'center', 
+                    p: 6,
+                    width: '100%',
+                    maxWidth: 700,
+                    mx: 'auto'
+                  }}>
+                    {/* Icono con gradiente */}
+                    <Box sx={{ 
+                      width: 140, 
+                      height: 140, 
+                      borderRadius: 4,
+                      background: (onboardingSteps[onboardingStep] as any).gradient || 'linear-gradient(135deg, #43a047 0%, #2e7d32 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      mx: 'auto',
+                      mb: 4,
+                      boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+                      animation: `${float} 3s ease-in-out infinite`,
+                      position: 'relative',
+                      '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        inset: -3,
+                        borderRadius: 5,
+                        background: 'inherit',
+                        opacity: 0.3,
+                        filter: 'blur(15px)',
+                        zIndex: -1
+                      }
+                    }}>
+                      {onboardingSteps[onboardingStep].icon}
+                    </Box>
+                    
+                    {/* Título */}
+                    <Typography 
+                      variant="h3" 
+                      fontWeight="800" 
+                      sx={{ 
+                        color: '#1a1a1a',
+                        mb: 2,
+                        letterSpacing: '-0.02em',
+                        animation: `${fadeInUp} 0.5s ease`
+                      }}
+                    >
+                      {onboardingSteps[onboardingStep].title}
+                    </Typography>
+                    
+                    {/* Línea decorativa */}
+                    <Box sx={{
+                      width: 60,
+                      height: 4,
+                      borderRadius: 2,
+                      background: (onboardingSteps[onboardingStep] as any).gradient || 'linear-gradient(135deg, #43a047 0%, #2e7d32 100%)',
+                      mx: 'auto',
+                      mb: 3
+                    }} />
+                    
+                    {/* Descripción */}
+                    <Typography 
+                      variant="h6" 
+                      sx={{ 
+                        color: '#555',
+                        maxWidth: 550, 
+                        mx: 'auto', 
+                        lineHeight: 1.7,
+                        fontWeight: 400,
+                        animation: `${fadeInUp} 0.5s ease 0.1s both`
+                      }}
+                    >
+                      {onboardingSteps[onboardingStep].description}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            </Fade>
+          </Box>
+
+          {/* Stepper en la parte inferior */}
+          <Box sx={{ width: '100%', py: 2, px: 4 }}>
+            <Stepper activeStep={onboardingStep} alternativeLabel>
+              {onboardingSteps.map((step, index) => (
+                <Step key={index}>
+                  <StepLabel 
+                    StepIconProps={{
+                      sx: {
+                        '&.Mui-active': { color: '#43a047' },
+                        '&.Mui-completed': { color: '#43a047' }
+                      }
+                    }}
+                  />
+                </Step>
+              ))}
+            </Stepper>
+          </Box>
+        </DialogContent>
+
+        {/* Footer con navegación */}
+        <DialogActions sx={{ 
+          px: 4, 
+          pb: 3, 
+          pt: 1,
+          justifyContent: 'space-between',
+          bgcolor: 'rgba(0,0,0,0.03)'
+        }}>
+          <Button
+            onClick={handlePrevStep}
+            disabled={onboardingStep === 0}
+            startIcon={<BackIcon />}
+            sx={{ 
+              visibility: onboardingStep === 0 ? 'hidden' : 'visible',
+              color: 'text.secondary'
+            }}
+          >
+            Anterior
+          </Button>
+
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {onboardingSteps.map((_, index) => (
+              <Box
+                key={index}
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  bgcolor: index === onboardingStep ? '#43a047' : 'rgba(0,0,0,0.1)',
+                  transition: 'all 0.3s'
+                }}
+              />
+            ))}
+          </Box>
+
+          <Button
+            onClick={handleNextStep}
+            variant="contained"
+            endIcon={onboardingStep === onboardingSteps.length - 1 ? <CheckIcon /> : <NextIcon />}
+            sx={{ 
+              bgcolor: '#43a047',
+              '&:hover': { bgcolor: '#2e7d32' },
+              px: 3
+            }}
+          >
+            {onboardingStep === onboardingSteps.length - 1 ? 'Comenzar' : (onboardingSteps[onboardingStep].isVideo ? 'Saltar video' : 'Siguiente')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </ThemeProvider>
   );
 };

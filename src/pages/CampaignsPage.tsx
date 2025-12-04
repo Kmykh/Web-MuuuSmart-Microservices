@@ -241,7 +241,7 @@ const CampaignsPage: React.FC = () => {
                             </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                 <Chip avatar={<Avatar sx={{ width: 24, height: 24 }}>{username[0]}</Avatar>} label={username} variant="outlined" sx={{ border: 'none', bgcolor: '#f5f5f5' }} />
-                                <IconButton onClick={logout} size="small"><LogoutIcon /></IconButton>
+                                <IconButton onClick={() => logout()} size="small"><LogoutIcon /></IconButton>
                             </Box>
                         </Toolbar>
                     </AppBar>

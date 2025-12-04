@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   TextField,
@@ -10,7 +10,9 @@ import {
   InputAdornment,
   Link,
   IconButton,
-  CssBaseline
+  CssBaseline,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { useAuth } from '../contexts/AuthContext';
@@ -47,13 +49,29 @@ const theme = createTheme({
 });
 
 const LoginPage: React.FC = () => {
-  const { login } = useAuth();
+  const { login, token, sessionExpiredReason, clearSessionExpiredReason } = useAuth();
   const navigate = useNavigate();
   
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false); // Estado para el ojito
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showExpiredAlert, setShowExpiredAlert] = useState(false);
+
+  // Si ya tiene token válido, redirigir al dashboard
+  useEffect(() => {
+    if (token) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [token, navigate]);
+
+  // Mostrar alerta si la sesión expiró
+  useEffect(() => {
+    if (sessionExpiredReason === 'expired') {
+      setShowExpiredAlert(true);
+      clearSessionExpiredReason();
+    }
+  }, [sessionExpiredReason, clearSessionExpiredReason]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,9 +235,14 @@ const LoginPage: React.FC = () => {
               <Box sx={{ textAlign: 'center' }}>
                 <Link
                   component="button"
+                  type="button"
                   variant="body2"
-                  onClick={() => navigate('/register')}
-                  sx={{ color: 'primary.main', fontWeight: 600, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+                  onClick={(e: React.MouseEvent) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate('/register');
+                  }}
+                  sx={{ color: 'primary.main', fontWeight: 600, textDecoration: 'none', '&:hover': { textDecoration: 'underline' }, border: 'none', background: 'none', cursor: 'pointer' }}
                 >
                   ¿No tienes cuenta? Regístrate
                 </Link>
@@ -227,6 +250,23 @@ const LoginPage: React.FC = () => {
             </Box>
           </Paper>
         </Container>
+
+        {/* Notificación de sesión expirada */}
+        <Snackbar
+          open={showExpiredAlert}
+          autoHideDuration={8000}
+          onClose={() => setShowExpiredAlert(false)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert 
+            onClose={() => setShowExpiredAlert(false)} 
+            severity="warning" 
+            variant="filled"
+            sx={{ width: '100%', fontWeight: 500 }}
+          >
+            ⏰ Tu sesión ha expirado por seguridad. Por favor, inicia sesión nuevamente.
+          </Alert>
+        </Snackbar>
       </Box>
     </ThemeProvider>
   );

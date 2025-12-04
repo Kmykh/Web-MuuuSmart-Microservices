@@ -11,43 +11,43 @@ export default defineConfig(({ mode }) => {
       port: 5174,
       proxy: {
         '/auth': {
-          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          target: env.VITE_API_GATEWAY_URL || 'http://98.92.31.103:8080',
           changeOrigin: true
         },
         '/animals': {
-          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          target: env.VITE_API_GATEWAY_URL || 'http://98.92.31.103:8080',
           changeOrigin: true
         },
         '/stables': {
-          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          target: env.VITE_API_GATEWAY_URL || 'http://98.92.31.103:8080',
           changeOrigin: true
         },
         '/campaigns': {
-          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          target: env.VITE_API_GATEWAY_URL || 'http://98.92.31.103:8080',
           changeOrigin: true
         },
         '/health': {
-          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          target: env.VITE_API_GATEWAY_URL || 'http://98.92.31.103:8080',
           changeOrigin: true
         },
         '/milk': {
-          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          target: env.VITE_API_GATEWAY_URL || 'http://98.92.31.103:8080',
           changeOrigin: true
         },
         '/weights': {
-          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          target: env.VITE_API_GATEWAY_URL || 'http://98.92.31.103:8080',
           changeOrigin: true
         },
         '/analytics': {
-          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          target: env.VITE_API_GATEWAY_URL || 'http://98.92.31.103:8080',
           changeOrigin: true
         },
         '/reports': {
-          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          target: env.VITE_API_GATEWAY_URL || 'http://98.92.31.103:8080',
           changeOrigin: true
         },
         '/assistant': {
-          target: env.VITE_API_GATEWAY_URL || 'http://localhost:8080',
+          target: env.VITE_API_GATEWAY_URL || 'http://98.92.31.103:8080',
           changeOrigin: true
         }
       }

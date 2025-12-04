@@ -331,7 +331,7 @@ const StablesPage: React.FC = () => {
                   variant="outlined"
                   sx={{ bgcolor: 'rgba(255,255,255,0.5)', border: 'none' }}
                 />
-                <IconButton onClick={logout} color="error">
+                <IconButton onClick={() => logout()} color="error">
                   <LogoutIcon />
                 </IconButton>
               </Box>
