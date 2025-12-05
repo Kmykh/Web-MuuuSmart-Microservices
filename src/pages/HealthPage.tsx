@@ -125,13 +125,15 @@ interface HealthFormState {
 }
 
 const HealthPage: React.FC = () => {
-    const { token, logout } = useAuth();
+    const { token, logout, isAdmin } = useAuth();
     const navigate = useNavigate();
 
     const [healthRecords, setHealthRecords] = useState<HealthRecord[]>([]);
     const [animals, setAnimals] = useState<Animal[]>([]);
     const [selectedAnimalId, setSelectedAnimalId] = useState<number | null>(null);
     const [healthPenalty, setHealthPenalty] = useState<number | null>(null);
+    const [selectedOwner, setSelectedOwner] = useState<string>('all');
+    const [ownersList, setOwnersList] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [username, setUsername] = useState<string>('Veterinario');
     const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'success' });
@@ -166,12 +168,18 @@ const HealthPage: React.FC = () => {
             const [animalsData, recordsData] = await Promise.all([getAllAnimalsAction(), getAllHealthRecordsAction()]);
             setAnimals(animalsData);
             setHealthRecords(recordsData);
+            
+            // Extraer lista de propietarios únicos si es admin
+            if (isAdmin) {
+                const owners = Array.from(new Set(recordsData.map(r => r.ownerUsername).filter(Boolean)));
+                setOwnersList(owners);
+            }
         } catch (err) {
             showSnackbar('Error cargando datos del sistema', 'error');
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [isAdmin]);
 
     const handleFilterChange = async (animalId: number | null) => {
         setSelectedAnimalId(animalId);
@@ -309,6 +317,11 @@ const HealthPage: React.FC = () => {
         if (penalty <= 0.4) return '#ff9800'; 
         return '#f44336'; 
     };
+    
+    // Filtrar registros por propietario seleccionado
+    const filteredHealthRecords = isAdmin && selectedOwner !== 'all'
+        ? healthRecords.filter(r => r.ownerUsername === selectedOwner)
+        : healthRecords;
 
     return (
         <ThemeProvider theme={theme}>
@@ -349,7 +362,7 @@ const HealthPage: React.FC = () => {
                         
                         {/* BARRA DE ACCIONES */}
                         <Paper elevation={0} sx={{ p: 2, mb: 3, borderRadius: '20px', bgcolor: 'white', display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexGrow: 1 }}>
+                            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexGrow: 1, flexWrap: 'wrap' }}>
                                 <FormControl sx={{ minWidth: 250 }}>
                                     <InputLabel>Historial del Paciente</InputLabel>
                                     <Select
@@ -364,6 +377,43 @@ const HealthPage: React.FC = () => {
                                         ))}
                                     </Select>
                                 </FormControl>
+                                
+                                {/* Filtro por propietario (solo admin) */}
+                                {isAdmin && ownersList.length > 0 && (
+                                    <FormControl sx={{ minWidth: 220 }}>
+                                        <InputLabel>🩺 Filtrar por Propietario</InputLabel>
+                                        <Select
+                                            value={selectedOwner}
+                                            onChange={(e) => setSelectedOwner(e.target.value)}
+                                            label="🩺 Filtrar por Propietario"
+                                            sx={{ borderRadius: 3, bgcolor: 'rgba(255,255,255,0.9)' }}
+                                        >
+                                            <MenuItem value="all">
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <Avatar sx={{ width: 28, height: 28, bgcolor: '#009688' }}>🏥</Avatar>
+                                                    <Typography>Todos los propietarios</Typography>
+                                                    <Chip size="small" label={healthRecords.length} sx={{ ml: 'auto', bgcolor: '#e0f2f1', fontWeight: 600 }} />
+                                                </Box>
+                                            </MenuItem>
+                                            {ownersList.map((owner) => (
+                                                <MenuItem key={owner} value={owner}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                                                        <Avatar sx={{ width: 28, height: 28, bgcolor: '#009688' }}>
+                                                            {owner.charAt(0).toUpperCase()}
+                                                        </Avatar>
+                                                        <Typography>{owner}</Typography>
+                                                        <Chip 
+                                                            size="small" 
+                                                            label={healthRecords.filter(r => r.ownerUsername === owner).length}
+                                                            sx={{ ml: 'auto', bgcolor: '#e0f2f1', color: '#009688', fontWeight: 600 }}
+                                                        />
+                                                    </Box>
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
+                                )}
+                                
                                 <Button startIcon={<PdfIcon />} onClick={handleExportPDF} variant="outlined" sx={{ borderRadius: 3, borderColor: 'primary.light', color: 'primary.main' }}>
                                     Exportar PDF
                                 </Button>
@@ -376,10 +426,10 @@ const HealthPage: React.FC = () => {
 
                         {/* GRID DE TICKETS (TARJETAS ESTILIZADAS) */}
                         {loading ? <Box sx={{ display: 'flex', justifyContent: 'center', mt: 5 }}><CircularProgress /></Box> :
-                        healthRecords.length === 0 ? <Paper sx={{ p: 5, textAlign: 'center', borderRadius: 4, bgcolor: 'white' }}><Typography color="text.secondary">No hay historial médico activo.</Typography></Paper> :
+                        filteredHealthRecords.length === 0 ? <Paper sx={{ p: 5, textAlign: 'center', borderRadius: 4, bgcolor: 'white' }}><Typography color="text.secondary">No hay historial médico para este propietario.</Typography></Paper> :
                         
                         <Grid container spacing={3}>
-                            {healthRecords.map((record, index) => {
+                            {filteredHealthRecords.map((record, index) => {
                                 const borderColor = getSeverityColor(record.penalty);
                                 return (
                                     <Grid item xs={12} md={6} lg={4} key={record.id}>
@@ -394,6 +444,27 @@ const HealthPage: React.FC = () => {
                                             '&:hover': { transform: 'translateY(-4px)' }
                                         }}>
                                             <CardContent sx={{ flexGrow: 1, p: 2.5 }}>
+                                                {/* Badge de propietario (solo admin) */}
+                                                {isAdmin && record.ownerUsername && (
+                                                    <Box sx={{ 
+                                                        mb: 1.5, 
+                                                        p: 0.75, 
+                                                        borderRadius: 2, 
+                                                        bgcolor: 'rgba(0, 150, 136, 0.08)',
+                                                        border: '1px solid rgba(0, 150, 136, 0.2)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 0.75
+                                                    }}>
+                                                        <Avatar sx={{ width: 20, height: 20, bgcolor: '#009688', fontSize: '0.7rem' }}>
+                                                            {record.ownerUsername.charAt(0).toUpperCase()}
+                                                        </Avatar>
+                                                        <Typography variant="caption" fontWeight="700" color="#009688">
+                                                            👤 {record.ownerUsername}
+                                                        </Typography>
+                                                    </Box>
+                                                )}
+                                                
                                                 {/* Encabezado: Paciente y Fecha */}
                                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                                                     <Box>

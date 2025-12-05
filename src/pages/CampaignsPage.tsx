@@ -107,7 +107,7 @@ const CHANNEL_TYPES: ChannelType[] = ['SMS', 'WHATSAPP', 'EMAIL', 'SOCIAL_MEDIA'
 const getProgress = (current: number, target: number) => (!target || target === 0) ? 0 : Math.min((current / target) * 100, 100);
 
 const CampaignsPage: React.FC = () => {
-    const { token, logout } = useAuth();
+    const { token, logout, isAdmin } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -116,6 +116,8 @@ const CampaignsPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [username, setUsername] = useState('Usuario');
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedOwner, setSelectedOwner] = useState<string>('all');
+    const [ownersList, setOwnersList] = useState<string[]>([]);
     const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'success' });
 
     // Dialogs
@@ -150,8 +152,14 @@ const CampaignsPage: React.FC = () => {
             const [campaignData, stableData] = await Promise.all([getAllCampaignsAction(), getAllStablesAction()]);
             setCampaigns(campaignData.map((c) => ({...c, goals: c.goals || [], channels: c.channels || [], status: (c.status as CampaignStatus) || 'PLANNED'})));
             setStables(stableData);
+            
+            // Extraer propietarios únicos si es admin
+            if (isAdmin) {
+                const owners = Array.from(new Set(stableData.map(s => s.ownerUsername).filter(Boolean)));
+                setOwnersList(owners);
+            }
         } catch (err) { showSnackbar('Error cargando los datos', 'error'); } finally { setLoading(false); }
-    }, []);
+    }, [isAdmin]);
 
     // Handlers
     const handleOpenCampaignDialog = () => { setCampaignForm({ name: '', description: '', startDate: '', endDate: '', status: 'PLANNED', stableId: stables[0]?.id || 0 }); setOpenCampaignDialog(true); };
@@ -208,7 +216,13 @@ const CampaignsPage: React.FC = () => {
         try { await deleteCampaignAction(campaignToDelete); showSnackbar('Eliminada', 'success'); setOpenDeleteDialog(false); setCampaignToDelete(null); loadData(); } catch (err) { showSnackbar('Error al eliminar', 'error'); }
     };
 
-    const filteredCampaigns = campaigns.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredCampaigns = campaigns
+        .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+        .filter(c => {
+            if (!isAdmin || selectedOwner === 'all') return true;
+            const stable = stables.find(s => s.id === c.stableId);
+            return stable?.ownerUsername === selectedOwner;
+        });
 
     return (
         <ThemeProvider theme={theme}>
@@ -247,11 +261,52 @@ const CampaignsPage: React.FC = () => {
                     </AppBar>
 
                     <Container maxWidth={false} sx={{ mt: 3, mb: 3, flexGrow: 1, overflow: 'auto' }}>
-                        <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                        <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
                             <Paper sx={{ p: '4px 16px', display: 'flex', alignItems: 'center', flexGrow: 1, borderRadius: '12px', bgcolor: 'white', border: '1px solid #edf2f7', boxShadow: 'none' }}>
                                 <SearchIcon sx={{ color: 'text.secondary', mr: 1 }} />
                                 <TextField variant="standard" placeholder="Buscar campaña..." InputProps={{ disableUnderline: true }} fullWidth value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                             </Paper>
+                            
+                            {/* Filtro por propietario (solo admin) */}
+                            {isAdmin && ownersList.length > 0 && (
+                                <FormControl sx={{ minWidth: 220 }}>
+                                    <InputLabel>🎯 Propietario</InputLabel>
+                                    <Select
+                                        value={selectedOwner}
+                                        onChange={(e) => setSelectedOwner(e.target.value)}
+                                        label="🎯 Propietario"
+                                        sx={{ borderRadius: 2, bgcolor: 'white' }}
+                                        size="small"
+                                    >
+                                        <MenuItem value="all">
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Avatar sx={{ width: 24, height: 24, bgcolor: '#2e7d32' }}>🌍</Avatar>
+                                                <Typography>Todos</Typography>
+                                            </Box>
+                                        </MenuItem>
+                                        {ownersList.map((owner) => {
+                                            const ownerStables = stables.filter(s => s.ownerUsername === owner);
+                                            const ownerCampaigns = campaigns.filter(c => ownerStables.some(s => s.id === c.stableId));
+                                            return (
+                                                <MenuItem key={owner} value={owner}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <Avatar sx={{ width: 24, height: 24, bgcolor: '#2e7d32' }}>
+                                                            {owner.charAt(0).toUpperCase()}
+                                                        </Avatar>
+                                                        <Typography>{owner}</Typography>
+                                                        <Chip 
+                                                            size="small" 
+                                                            label={ownerCampaigns.length}
+                                                            sx={{ ml: 'auto', bgcolor: '#e8f5e9', color: '#2e7d32', fontSize: '0.7rem' }}
+                                                        />
+                                                    </Box>
+                                                </MenuItem>
+                                            );
+                                        })}
+                                    </Select>
+                                </FormControl>
+                            )}
+                            
                             <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCampaignDialog} sx={{ borderRadius: '12px', px: 4, boxShadow: 'none' }}>Crear</Button>
                         </Box>
 
@@ -276,6 +331,27 @@ const CampaignsPage: React.FC = () => {
                                         }}>
                                             
                                             <CardContent sx={{ flexGrow: 1, p: 3, pb: 1 }}>
+                                                {/* Badge de propietario (solo admin) */}
+                                                {isAdmin && stable?.ownerUsername && (
+                                                    <Box sx={{ 
+                                                        mb: 1.5, 
+                                                        p: 0.75, 
+                                                        borderRadius: 2, 
+                                                        bgcolor: 'rgba(46, 125, 50, 0.08)',
+                                                        border: '1px solid rgba(46, 125, 50, 0.2)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: 0.75
+                                                    }}>
+                                                        <Avatar sx={{ width: 20, height: 20, bgcolor: '#2e7d32', fontSize: '0.7rem' }}>
+                                                            {stable.ownerUsername.charAt(0).toUpperCase()}
+                                                        </Avatar>
+                                                        <Typography variant="caption" fontWeight="700" color="#2e7d32">
+                                                            👤 {stable.ownerUsername}
+                                                        </Typography>
+                                                    </Box>
+                                                )}
+                                                
                                                 {/* Header: Titulo + Delete */}
                                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 0.5 }}>
                                                     <Typography variant="h6" color="text.primary" sx={{ lineHeight: 1.2 }}>{campaign.name}</Typography>

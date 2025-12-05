@@ -6,6 +6,8 @@ import { LoginRequest, RegisterRequest } from '../domain/auth';
 interface AuthContextType {
   token: string | null;
   isLoading: boolean;
+  userRole: string | null;
+  username: string | null;
   login: (payload: LoginRequest) => Promise<void>;
   register: (payload: RegisterRequest) => Promise<void>;
   logout: (reason?: 'manual' | 'expired') => void;
@@ -15,11 +17,14 @@ interface AuthContextType {
   clearWelcomeNotification: () => void;
   isNewUser: boolean;
   clearNewUser: () => void;
+  isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   token: null,
   isLoading: true,
+  userRole: null,
+  username: null,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   login: async (_payload: LoginRequest) => {},
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -30,7 +35,8 @@ const AuthContext = createContext<AuthContextType>({
   showWelcomeNotification: false,
   clearWelcomeNotification: () => {},
   isNewUser: false,
-  clearNewUser: () => {}
+  clearNewUser: () => {},
+  isAdmin: false
 });
 
 // Helper para decodificar JWT y obtener exp
@@ -40,6 +46,19 @@ const getTokenExpiration = (token: string): number | null => {
     return payload.exp ? payload.exp * 1000 : null; // Convertir a ms
   } catch {
     return null;
+  }
+};
+
+// Helper para extraer información del usuario del token
+const getTokenInfo = (token: string): { role: string | null; username: string | null } => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return {
+      role: payload.role || payload.roles?.[0] || null,
+      username: payload.sub || payload.username || null
+    };
+  } catch {
+    return { role: null, username: null };
   }
 };
 
@@ -72,6 +91,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [showWelcomeNotification, setShowWelcomeNotification] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
   const navigate = useNavigate();
+
+  // Extraer role y username del token
+  const tokenInfo = token ? getTokenInfo(token) : { role: null, username: null };
+  const userRole = tokenInfo.role;
+  const username = tokenInfo.username;
+  const isAdmin = userRole?.toLowerCase() === 'admin' || userRole?.toLowerCase() === 'role_admin';
 
   const logout = useCallback((reason: 'manual' | 'expired' = 'manual') => {
     console.log(`🚪 Cerrando sesión... Razón: ${reason}`);
@@ -168,6 +193,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider value={{ 
       token, 
       isLoading,
+      userRole,
+      username,
       login, 
       register, 
       logout, 
@@ -176,7 +203,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       showWelcomeNotification,
       clearWelcomeNotification,
       isNewUser,
-      clearNewUser
+      clearNewUser,
+      isAdmin
     }}>
       {children}
     </AuthContext.Provider>

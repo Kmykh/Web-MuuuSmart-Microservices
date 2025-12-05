@@ -85,7 +85,7 @@ const getStatusLabel = (status: string) => {
 };
 
 const ReportsPage: React.FC = () => {
-    const { token, logout } = useAuth();
+    const { token, logout, isAdmin } = useAuth();
     const navigate = useNavigate();
     const [username, setUsername] = useState('Ganadero');
 
@@ -94,6 +94,8 @@ const ReportsPage: React.FC = () => {
     const [stables, setStables] = useState<Stable[]>([]);
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [loading, setLoading] = useState(false);
+    const [selectedOwner, setSelectedOwner] = useState<string>('all');
+    const [ownersList, setOwnersList] = useState<string[]>([]);
 
     const [animalReport, setAnimalReport] = useState<AnimalFullReport | null>(null);
     const [stableReport, setStableReport] = useState<StableFullReport | null>(null);
@@ -119,6 +121,12 @@ const ReportsPage: React.FC = () => {
         try {
             const data = await getAllAnimalsAction();
             setAnimals(data);
+            
+            // Extraer propietarios únicos si es admin
+            if (isAdmin) {
+                const owners = Array.from(new Set(data.map(a => a.ownerUsername).filter(Boolean)));
+                setOwnersList(owners);
+            }
         } catch (error) {
             console.error("Error loading animals");
         }
@@ -128,6 +136,12 @@ const ReportsPage: React.FC = () => {
         try {
             const data = await getAllStablesAction();
             setStables(data);
+            
+            // Actualizar lista de propietarios incluyendo los de establos
+            if (isAdmin) {
+                const stableOwners = Array.from(new Set(data.map(s => s.ownerUsername).filter(Boolean)));
+                setOwnersList(prev => Array.from(new Set([...prev, ...stableOwners])));
+            }
         } catch (error) {
             console.error("Error loading stables");
         }
@@ -404,19 +418,69 @@ const ReportsPage: React.FC = () => {
                                             label={reportType === 'animal' ? 'Seleccionar Animal' : 'Seleccionar Establo'}
                                         >
                                             {reportType === 'animal' ? (
-                                                animals.map(a => (
-                                                    <MenuItem key={a.id} value={a.id}>{a.tag} - {a.breed}</MenuItem>
+                                                (isAdmin && selectedOwner !== 'all' 
+                                                    ? animals.filter(a => a.ownerUsername === selectedOwner)
+                                                    : animals
+                                                ).map(a => (
+                                                    <MenuItem key={a.id} value={a.id}>
+                                                        {a.tag} - {a.breed}
+                                                        {isAdmin && <Typography component="span" variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
+                                                            ({a.ownerUsername})
+                                                        </Typography>}
+                                                    </MenuItem>
                                                 ))
                                             ) : (
-                                                stables.map(s => (
-                                                    <MenuItem key={s.id} value={s.id}>{s.name} - {s.location}</MenuItem>
+                                                (isAdmin && selectedOwner !== 'all'
+                                                    ? stables.filter(s => s.ownerUsername === selectedOwner)
+                                                    : stables
+                                                ).map(s => (
+                                                    <MenuItem key={s.id} value={s.id}>
+                                                        {s.name} - {s.location}
+                                                        {isAdmin && <Typography component="span" variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
+                                                            ({s.ownerUsername})
+                                                        </Typography>}
+                                                    </MenuItem>
                                                 ))
                                             )}
                                         </Select>
                                     </FormControl>
                                 </Grid>
+                                
+                                {/* Filtro por propietario (solo admin) */}
+                                {isAdmin && ownersList.length > 0 && (
+                                    <Grid item xs={12} md={3}>
+                                        <FormControl fullWidth size="small">
+                                            <InputLabel>📋 Propietario</InputLabel>
+                                            <Select
+                                                value={selectedOwner}
+                                                onChange={(e) => {
+                                                    setSelectedOwner(e.target.value);
+                                                    setSelectedId(null);
+                                                }}
+                                                label="📋 Propietario"
+                                            >
+                                                <MenuItem value="all">
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <Avatar sx={{ width: 24, height: 24, bgcolor: '#43a047' }}>🌍</Avatar>
+                                                        <Typography>Todos</Typography>
+                                                    </Box>
+                                                </MenuItem>
+                                                {ownersList.map((owner) => (
+                                                    <MenuItem key={owner} value={owner}>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                            <Avatar sx={{ width: 24, height: 24, bgcolor: '#43a047' }}>
+                                                                {owner.charAt(0).toUpperCase()}
+                                                            </Avatar>
+                                                            <Typography>{owner}</Typography>
+                                                        </Box>
+                                                    </MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormControl>
+                                    </Grid>
+                                )}
 
-                                <Grid item xs={12} md={4}>
+                                <Grid item xs={12} md={isAdmin && ownersList.length > 0 ? 4 : 4}>
                                     <Stack direction="row" spacing={2}>
                                         <Button 
                                             variant="contained" 

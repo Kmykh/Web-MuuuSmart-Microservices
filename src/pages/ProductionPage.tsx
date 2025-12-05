@@ -189,12 +189,14 @@ const generateRecommendations = (weightGain30d: number | null, avgMilk: number |
 };
 
 const ProductionPage: React.FC = () => {
-    const { token, logout } = useAuth();
+    const { token, logout, isAdmin } = useAuth();
     const navigate = useNavigate();
 
     const [tabValue, setTabValue] = useState(0);
     const [animals, setAnimals] = useState<Animal[]>([]);
     const [selectedAnimalId, setSelectedAnimalId] = useState<number | null>(null);
+    const [selectedOwner, setSelectedOwner] = useState<string>('all');
+    const [ownersList, setOwnersList] = useState<string[]>([]);
     const [loading, setLoading] = useState(false); 
     const [username, setUsername] = useState('Ganadero');
 
@@ -225,6 +227,12 @@ const ProductionPage: React.FC = () => {
         try {
             const data = await getAllAnimalsAction();
             setAnimals(data);
+            
+            // Extraer lista de propietarios únicos si es admin
+            if (isAdmin) {
+                const owners = Array.from(new Set(data.map(a => a.ownerUsername).filter(Boolean)));
+                setOwnersList(owners);
+            }
         } catch (error) { console.error("Error loading animals"); }
     };
 
@@ -467,8 +475,8 @@ const ProductionPage: React.FC = () => {
                     <Container maxWidth={false} sx={{ mt: 3, mb: 3, flexGrow: 1, overflow: 'auto' }}>
                         
                         {/* SELECCIÓN DE ANIMAL */}
-                        <Paper elevation={0} sx={{ p: 2, mb: 4, borderRadius: '20px', bgcolor: 'rgba(255,255,255,0.9)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
+                        <Paper elevation={0} sx={{ p: 2, mb: 4, borderRadius: '20px', bgcolor: 'rgba(255,255,255,0.9)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1, flexWrap: 'wrap' }}>
                                 <PetsIcon color="action" />
                                 <FormControl sx={{ minWidth: 300 }} size="small">
                                     <InputLabel>Seleccionar Animal para ver Analíticas</InputLabel>
@@ -478,11 +486,57 @@ const ProductionPage: React.FC = () => {
                                         label="Seleccionar Animal para ver Analíticas"
                                     >
                                         <MenuItem value=""><em>Ninguno</em></MenuItem>
-                                        {animals.map(animal => (
-                                            <MenuItem key={animal.id} value={animal.id}>{animal.tag} - {animal.breed}</MenuItem>
+                                        {(isAdmin && selectedOwner !== 'all' 
+                                            ? animals.filter(a => a.ownerUsername === selectedOwner)
+                                            : animals
+                                        ).map(animal => (
+                                            <MenuItem key={animal.id} value={animal.id}>
+                                                {animal.tag} - {animal.breed}
+                                                {isAdmin && <Typography component="span" variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
+                                                    ({animal.ownerUsername})
+                                                </Typography>}
+                                            </MenuItem>
                                         ))}
                                     </Select>
                                 </FormControl>
+                                
+                                {/* Filtro por propietario (solo admin) */}
+                                {isAdmin && ownersList.length > 0 && (
+                                    <FormControl sx={{ minWidth: 220 }} size="small">
+                                        <InputLabel>📊 Propietario</InputLabel>
+                                        <Select
+                                            value={selectedOwner}
+                                            onChange={(e) => {
+                                                setSelectedOwner(e.target.value);
+                                                setSelectedAnimalId(null);
+                                            }}
+                                            label="📊 Propietario"
+                                            sx={{ borderRadius: 2 }}
+                                        >
+                                            <MenuItem value="all">
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <Avatar sx={{ width: 24, height: 24, bgcolor: '#43a047' }}>🌍</Avatar>
+                                                    <Typography>Todos</Typography>
+                                                </Box>
+                                            </MenuItem>
+                                            {ownersList.map((owner) => (
+                                                <MenuItem key={owner} value={owner}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <Avatar sx={{ width: 24, height: 24, bgcolor: '#43a047' }}>
+                                                            {owner.charAt(0).toUpperCase()}
+                                                        </Avatar>
+                                                        <Typography>{owner}</Typography>
+                                                        <Chip 
+                                                            size="small" 
+                                                            label={animals.filter(a => a.ownerUsername === owner).length}
+                                                            sx={{ ml: 'auto', bgcolor: '#e8f5e9', color: '#43a047', fontSize: '0.7rem' }}
+                                                        />
+                                                    </Box>
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
+                                )}
                             </Box>
                             {selectedAnimalId && analytics && (
                                 <Button 

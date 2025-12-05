@@ -153,7 +153,7 @@ const getFeedInfo = (lvl: number) => {
 };
 
 const AnimalsPage: React.FC = () => {
-  const { token, logout } = useAuth();
+  const { token, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const [animals, setAnimals] = useState<Animal[]>([]);
@@ -169,6 +169,10 @@ const AnimalsPage: React.FC = () => {
   const [searchValue, setSearchValue] = useState<Animal | null>(null);
   const [snackbar, setSnackbar] = useState<{ open: boolean, message: string, severity: 'success' | 'error' | 'warning' | 'info' }>({ open: false, message: '', severity: 'success' });
   
+  // Filtros para admin
+  const [selectedOwner, setSelectedOwner] = useState<string>('all');
+  const [ownersList, setOwnersList] = useState<string[]>([]);
+  
   const [formData, setFormData] = useState<AnimalRequest>({ tag: '', breed: 'Holstein', weight: 450, age: 2, status: 'HEALTHY', feedLevel: 7, stableId: 0 });
 
   useEffect(() => {
@@ -182,15 +186,22 @@ const AnimalsPage: React.FC = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      // Todos usan los mismos endpoints - el backend devuelve datos según el rol en el token
       const [aData, sData] = await Promise.all([getAllAnimalsAction(), getAllStablesAction()]);
       setAnimals(aData.map(a => ({ ...a, feedLevel: a.feedLevel || 7 }))); 
       setStables(sData);
       const occupancy: Record<number, number> = {};
       sData.forEach(s => occupancy[s.id] = aData.filter(a => a.stableId === s.id).length);
       setStableOccupancy(occupancy);
+      
+      // Si es admin, extraer lista de propietarios únicos
+      if (isAdmin) {
+        const uniqueOwners = Array.from(new Set(aData.map(a => a.ownerUsername)));
+        setOwnersList(uniqueOwners.sort());
+      }
     } catch (err) { showSnackbar('Error cargando datos', 'error'); } 
     finally { setLoading(false); }
-  }, []);
+  }, [isAdmin]);
 
   // --- SIMULACIÓN DE METABOLISMO ---
   // Baja 1 nivel cada 5 minutos (300,000 ms) para ser más realista y menos caótico que 1 minuto.
@@ -251,7 +262,11 @@ const AnimalsPage: React.FC = () => {
     }
   };
 
-  const filteredAnimals = searchValue ? animals.filter(a => a.id === searchValue.id) : animals;
+  const filteredAnimals = searchValue 
+    ? animals.filter(a => a.id === searchValue.id) 
+    : isAdmin && selectedOwner !== 'all'
+      ? animals.filter(a => a.ownerUsername === selectedOwner)
+      : animals;
 
   // Lógica de Pronóstico Global
   const getFeedingForecast = () => {
@@ -294,7 +309,16 @@ const AnimalsPage: React.FC = () => {
             <Toolbar sx={{ justifyContent: 'space-between', bgcolor: 'rgba(255,255,255,0.6)', backdropFilter: 'blur(10px)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.5)' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <PetsIcon sx={{ color: 'primary.main' }} />
-                <Typography variant="h6" color="text.primary">Gestión de Animales</Typography>
+                <Box>
+                  <Typography variant="h6" color="text.primary">
+                    {isAdmin ? 'Gestión Global de Animales' : 'Gestión de Animales'}
+                  </Typography>
+                  {isAdmin && (
+                    <Typography variant="caption" color="text.secondary">
+                      Vista de todos los usuarios
+                    </Typography>
+                  )}
+                </Box>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                 <Chip avatar={<Avatar>{username[0]}</Avatar>} label={username} variant="outlined" sx={{ bgcolor: 'rgba(255,255,255,0.5)', border: 'none' }} />
@@ -317,9 +341,71 @@ const AnimalsPage: React.FC = () => {
                 <Chip label="Cálculo Metabólico" size="small" variant="outlined" sx={{ borderColor: 'rgba(0,0,0,0.2)', color: 'text.secondary' }} />
             </Paper>
 
+            {/* Estadísticas por propietario (solo admin) */}
+            {isAdmin && ownersList.length > 0 && (
+              <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: '16px', bgcolor: 'rgba(103, 126, 234, 0.05)', border: '1px solid rgba(103, 126, 234, 0.2)' }}>
+                <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, color: '#667eea' }}>
+                  📊 Resumen por Propietario
+                </Typography>
+                <Grid container spacing={2}>
+                  {ownersList.map((owner) => {
+                    const ownerAnimals = animals.filter(a => a.ownerUsername === owner);
+                    const healthyCount = ownerAnimals.filter(a => a.status === 'HEALTHY').length;
+                    const sickCount = ownerAnimals.filter(a => a.status === 'SICK').length;
+                    
+                    return (
+                      <Grid item xs={12} sm={6} md={4} key={owner}>
+                        <Box 
+                          sx={{ 
+                            p: 2, 
+                            borderRadius: 2, 
+                            bgcolor: selectedOwner === owner ? 'rgba(103, 126, 234, 0.15)' : 'white',
+                            border: selectedOwner === owner ? '2px solid #667eea' : '1px solid rgba(0,0,0,0.1)',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            '&:hover': { 
+                              transform: 'translateY(-2px)', 
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)' 
+                            }
+                          }}
+                          onClick={() => setSelectedOwner(owner)}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                            <Avatar sx={{ bgcolor: '#667eea', width: 32, height: 32 }}>
+                              {owner.charAt(0).toUpperCase()}
+                            </Avatar>
+                            <Box sx={{ flexGrow: 1 }}>
+                              <Typography fontWeight="700">{owner}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {ownerAnimals.length} animales
+                              </Typography>
+                            </Box>
+                          </Box>
+                          <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
+                            <Chip 
+                              label={`✓ ${healthyCount}`} 
+                              size="small" 
+                              sx={{ bgcolor: '#e8f5e9', color: '#2e7d32', fontWeight: 600 }}
+                            />
+                            {sickCount > 0 && (
+                              <Chip 
+                                label={`⚠ ${sickCount}`} 
+                                size="small" 
+                                sx={{ bgcolor: '#ffebee', color: '#c62828', fontWeight: 600 }}
+                              />
+                            )}
+                          </Box>
+                        </Box>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              </Paper>
+            )}
+
             {/* 2. BARRA DE HERRAMIENTAS */}
-            <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-               <Paper sx={{ p: '2px 4px', display: 'flex', alignItems: 'center', flexGrow: 1, borderRadius: '12px', bgcolor: 'rgba(255,255,255,0.9)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+            <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+               <Paper sx={{ p: '2px 4px', display: 'flex', alignItems: 'center', flexGrow: 1, minWidth: 300, borderRadius: '12px', bgcolor: 'rgba(255,255,255,0.9)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
                     <Autocomplete
                         fullWidth
                         options={animals}
@@ -342,6 +428,48 @@ const AnimalsPage: React.FC = () => {
                         )}
                     />
                 </Paper>
+                
+                {/* Filtro por propietario (solo para admin) */}
+                {isAdmin && ownersList.length > 0 && (
+                  <FormControl sx={{ minWidth: 200 }}>
+                    <Select
+                      value={selectedOwner}
+                      onChange={(e) => setSelectedOwner(e.target.value)}
+                      size="small"
+                      sx={{ 
+                        borderRadius: '12px', 
+                        bgcolor: 'rgba(255,255,255,0.9)',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+                        '& .MuiOutlinedInput-notchedOutline': { border: 'none' }
+                      }}
+                      startAdornment={
+                        <InputAdornment position="start">
+                          <OwnerIcon color="action" />
+                        </InputAdornment>
+                      }
+                    >
+                      <MenuItem value="all">
+                        <Typography fontWeight="600">Todos los propietarios</Typography>
+                      </MenuItem>
+                      {ownersList.map((owner) => (
+                        <MenuItem key={owner} value={owner}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem', bgcolor: '#667eea' }}>
+                              {owner.charAt(0).toUpperCase()}
+                            </Avatar>
+                            <Typography>{owner}</Typography>
+                            <Chip 
+                              size="small" 
+                              label={animals.filter(a => a.ownerUsername === owner).length}
+                              sx={{ ml: 1, height: 20, fontSize: '0.7rem' }}
+                            />
+                          </Box>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
+                
                 <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleOpenDialog()} sx={{ borderRadius: '12px', fontWeight: 700, px: 4, boxShadow: '0 8px 16px rgba(67, 160, 71, 0.25)' }}>Nuevo</Button>
             </Box>
 
@@ -368,6 +496,27 @@ const AnimalsPage: React.FC = () => {
                       </Box>
                       
                       <CardContent sx={{ pt: 1, pb: 1, px: 3, flexGrow: 1 }}>
+                        {/* Si es admin, mostrar propietario prominentemente */}
+                        {isAdmin && (
+                          <Box sx={{ 
+                            mb: 1, 
+                            px: 1.5, 
+                            py: 0.5, 
+                            bgcolor: '#f3e5f5', 
+                            borderRadius: 2,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1
+                          }}>
+                            <Avatar sx={{ width: 20, height: 20, fontSize: '0.7rem', bgcolor: '#667eea' }}>
+                              {animal.ownerUsername.charAt(0).toUpperCase()}
+                            </Avatar>
+                            <Typography variant="caption" fontWeight="700" color="#667eea">
+                              {animal.ownerUsername}
+                            </Typography>
+                          </Box>
+                        )}
+                        
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
                            <Typography variant="h5" fontWeight="800" color="text.primary">{animal.tag}</Typography>
                            <Chip label={sInfo.label} color={sInfo.color as any} size="small" sx={{ fontWeight: 700, height: 20, fontSize: '0.65rem' }} />
@@ -376,8 +525,10 @@ const AnimalsPage: React.FC = () => {
                         <Divider sx={{ my: 1.5, borderStyle: 'dashed' }} />
                         
                         <Grid container spacing={1}>
-                            <Grid item xs={6}><Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><OwnerIcon fontSize="small" sx={{ color: '#90a4ae', fontSize: 16 }} /><Typography variant="caption" color="text.secondary" fontWeight="500">Dueño: {animal.ownerUsername}</Typography></Box></Grid>
-                            <Grid item xs={6}><Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><WeightIcon fontSize="small" sx={{ color: '#90a4ae', fontSize: 16 }} /><Typography variant="caption" color="text.secondary" fontWeight="500">{animal.weight}kg</Typography></Box></Grid>
+                            {!isAdmin && (
+                              <Grid item xs={6}><Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><OwnerIcon fontSize="small" sx={{ color: '#90a4ae', fontSize: 16 }} /><Typography variant="caption" color="text.secondary" fontWeight="500">Dueño: {animal.ownerUsername}</Typography></Box></Grid>
+                            )}
+                            <Grid item xs={isAdmin ? 12 : 6}><Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}><WeightIcon fontSize="small" sx={{ color: '#90a4ae', fontSize: 16 }} /><Typography variant="caption" color="text.secondary" fontWeight="500">{animal.weight}kg</Typography></Box></Grid>
                             
                             <Grid item xs={6}>
                                 <Chip icon={<LocationIcon sx={{ fontSize: '14px !important', color: 'white !important' }} />} label={stable?.name || 'N/A'} size="small" sx={{ bgcolor: 'secondary.main', color: 'white', fontWeight: 'bold', fontSize: '0.7rem', height: 22 }} />

@@ -10,6 +10,7 @@ import CampaignsPage from './pages/CampaignsPage';
 import HealthPage from './pages/HealthPage';
 import ProductionPage from './pages/ProductionPage';
 import ReportsPage from './pages/ReportsPage';
+import AdminPage from './pages/AdminPage';
 import { useAuth } from './contexts/AuthContext';
 
 // Componente de carga mientras se verifica el token
@@ -31,7 +32,7 @@ const LoadingScreen = () => (
 );
 
 const App: React.FC = () => {
-  const { token, isLoading } = useAuth();
+  const { token, isLoading, isAdmin } = useAuth();
 
   // Mostrar pantalla de carga mientras se verifica el token
   if (isLoading) {
@@ -72,6 +73,10 @@ const App: React.FC = () => {
       <Route 
         path="/reports" 
         element={token ? <ReportsPage /> : <Navigate to="/login" replace />} 
+      />
+      <Route 
+        path="/admin" 
+        element={token && isAdmin ? <AdminPage /> : <Navigate to={token ? '/dashboard' : '/login'} replace />} 
       />
       {/* Añadir más rutas protegidas aquí */}
 

@@ -6,6 +6,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   return {
     plugins: [react()],
+    publicDir: 'public',
     server: {
       // Ajusta el puerto para coincidir con el que estás usando (5174 según el error mostrado)
       port: 5174,

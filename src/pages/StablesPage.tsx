@@ -4,7 +4,8 @@ import {
   Box, Container, Typography, Paper, Button, Grid, Card, CardContent, CardActions,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, IconButton, Chip,
   Alert, CircularProgress, List, ListItemButton, ListItemIcon, Tooltip, Avatar,
-  AppBar, Toolbar, CssBaseline, LinearProgress, Slide, InputAdornment, Divider, Stack
+  AppBar, Toolbar, CssBaseline, LinearProgress, Slide, InputAdornment, Divider, Stack,
+  FormControl, InputLabel, Select, MenuItem
 } from '@mui/material';
 import { TransitionProps } from '@mui/material/transitions';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
@@ -166,7 +167,7 @@ const ScrollNumberPicker: React.FC<{
 };
 
 const StablesPage: React.FC = () => {
-  const { token, logout } = useAuth();
+  const { token, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -180,6 +181,10 @@ const StablesPage: React.FC = () => {
   const [username, setUsername] = useState<string>('Usuario');
   const [formData, setFormData] = useState<CreateStableRequest>({ name: '', description: '', location: '', capacity: 0 });
   const [stableOccupancy, setStableOccupancy] = useState<Record<number, number>>({});
+  
+  // Estados para filtro por propietario (admin)
+  const [selectedOwner, setSelectedOwner] = useState<string>('all');
+  const [ownersList, setOwnersList] = useState<string[]>([]);
 
   useEffect(() => {
     if (!token) {
@@ -206,6 +211,12 @@ const StablesPage: React.FC = () => {
         occupancy[stable.id] = aData.filter((animal) => animal.stableId === stable.id).length;
       });
       setStableOccupancy(occupancy);
+      
+      // Extraer lista de propietarios únicos si es admin
+      if (isAdmin) {
+        const owners = Array.from(new Set(sData.map(s => s.ownerUsername).filter(Boolean)));
+        setOwnersList(owners);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -230,6 +241,11 @@ const StablesPage: React.FC = () => {
     setSelectedStableAnimals(stableAnimals);
     setOpenDetailsDialog(true);
   };
+  
+  // Filtrar establos por propietario seleccionado
+  const filteredStables = isAdmin && selectedOwner !== 'all' 
+    ? stables.filter(s => s.ownerUsername === selectedOwner)
+    : stables;
 
   return (
     <ThemeProvider theme={theme}>
@@ -339,7 +355,7 @@ const StablesPage: React.FC = () => {
           </AppBar>
 
           <Container maxWidth={false} sx={{ mt: 3, mb: 3, flexGrow: 1, overflow: 'auto' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
               <Paper
                 sx={{
                   p: '2px 14px',
@@ -358,6 +374,49 @@ const StablesPage: React.FC = () => {
                   fullWidth
                 />
               </Paper>
+              
+              {/* Filtro por propietario (solo admin) */}
+              {isAdmin && ownersList.length > 0 && (
+                <FormControl sx={{ minWidth: 220 }}>
+                  <InputLabel>🏠 Filtrar por Propietario</InputLabel>
+                  <Select
+                    value={selectedOwner}
+                    onChange={(e) => setSelectedOwner(e.target.value)}
+                    label="🏠 Filtrar por Propietario"
+                    sx={{
+                      borderRadius: 3,
+                      bgcolor: 'rgba(255,255,255,0.9)',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#43a047'
+                      }
+                    }}
+                  >
+                    <MenuItem value="all">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Avatar sx={{ width: 28, height: 28, bgcolor: '#43a047' }}>🏘️</Avatar>
+                        <Typography>Todos los propietarios</Typography>
+                        <Chip size="small" label={stables.length} sx={{ ml: 'auto', bgcolor: '#e8f5e9', fontWeight: 600 }} />
+                      </Box>
+                    </MenuItem>
+                    {ownersList.map((owner) => (
+                      <MenuItem key={owner} value={owner}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                          <Avatar sx={{ width: 28, height: 28, bgcolor: '#43a047' }}>
+                            {owner.charAt(0).toUpperCase()}
+                          </Avatar>
+                          <Typography>{owner}</Typography>
+                          <Chip 
+                            size="small" 
+                            label={stables.filter(s => s.ownerUsername === owner).length}
+                            sx={{ ml: 'auto', bgcolor: '#e8f5e9', color: '#43a047', fontWeight: 600 }}
+                          />
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+              
               <Button
                 variant="contained"
                 startIcon={<AddIcon />}
@@ -375,7 +434,7 @@ const StablesPage: React.FC = () => {
               <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
                 <CircularProgress />
               </Box>
-            ) : stables.length === 0 ? (
+            ) : filteredStables.length === 0 ? (
               <Paper
                 sx={{
                   p: 5,
@@ -384,11 +443,11 @@ const StablesPage: React.FC = () => {
                   bgcolor: 'rgba(255,255,255,0.6)',
                 }}
               >
-                <Typography>No hay establos</Typography>
+                <Typography>No hay establos para este propietario</Typography>
               </Paper>
             ) : (
               <Grid container spacing={3}>
-                {stables.map((stable, index) => (
+                {filteredStables.map((stable, index) => (
                   <Grid item xs={12} sm={6} md={4} lg={3} key={stable.id}>
                     <Card
                       elevation={0}
@@ -410,6 +469,27 @@ const StablesPage: React.FC = () => {
                       }}
                     >
                       <CardContent sx={{ flexGrow: 1, p: 3 }}>
+                        {/* Badge de propietario (solo admin) */}
+                        {isAdmin && stable.ownerUsername && (
+                          <Box sx={{ 
+                            mb: 2, 
+                            p: 1, 
+                            borderRadius: 2, 
+                            bgcolor: 'rgba(67, 160, 71, 0.1)',
+                            border: '1px solid rgba(67, 160, 71, 0.3)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1
+                          }}>
+                            <Avatar sx={{ width: 24, height: 24, bgcolor: '#43a047', fontSize: '0.75rem' }}>
+                              {stable.ownerUsername.charAt(0).toUpperCase()}
+                            </Avatar>
+                            <Typography variant="caption" fontWeight="700" color="#43a047">
+                              👤 {stable.ownerUsername}
+                            </Typography>
+                          </Box>
+                        )}
+                        
                         <Box
                           sx={{
                             display: 'flex',
